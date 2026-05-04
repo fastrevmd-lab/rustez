@@ -2,9 +2,10 @@
 
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use serde::Serialize;
 
 /// Information about a single routing engine.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct RouteEngine {
     /// RE slot number (e.g., 0, 1).
     pub slot: Option<u32>,
