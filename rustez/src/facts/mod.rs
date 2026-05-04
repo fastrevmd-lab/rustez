@@ -11,13 +11,14 @@ pub mod software;
 use std::time::Duration;
 
 use rustnetconf::Client;
+use serde::Serialize;
 
 use crate::error::RustEzError;
 pub use personality::{detect_personality, Personality};
 pub use routing_engine::RouteEngine;
 
 /// Collected facts about a Junos device.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Facts {
     /// Device hostname.
     pub hostname: String,
@@ -326,5 +327,55 @@ mod tests {
         let items = unwrap_multi_re(xml);
         let is_cluster = items.len() > 1;
         assert!(!is_cluster);
+    }
+
+    #[test]
+    fn facts_serializes_to_json_with_snake_case_fields() {
+        let facts = Facts {
+            hostname: "lab-r1.example.net".to_string(),
+            model: "vSRX".to_string(),
+            version: "23.4R1.10".to_string(),
+            serial_number: "VM5A1234".to_string(),
+            personality: Personality::Vsrx,
+            route_engines: vec![RouteEngine {
+                slot: Some(0),
+                status: "OK".to_string(),
+                model: Some("RE-VSRX".to_string()),
+                mastership_state: Some("master".to_string()),
+                uptime: Some("3 days".to_string()),
+                memory_total: Some("4096 MB".to_string()),
+            }],
+            master_re: Some(0),
+            domain: Some("example.net".to_string()),
+            fqdn: Some("lab-r1.example.net".to_string()),
+            is_cluster: false,
+        };
+
+        let value = serde_json::to_value(&facts).unwrap();
+
+        // Top-level snake_case fields are preserved (no rename_all on Facts).
+        assert_eq!(value["hostname"], "lab-r1.example.net");
+        assert_eq!(value["serial_number"], "VM5A1234");
+        assert_eq!(value["is_cluster"], false);
+        assert_eq!(value["master_re"], 0);
+
+        // Personality serializes as a lowercase string for known variants.
+        assert_eq!(value["personality"], "vsrx");
+
+        // Nested RouteEngine serializes with snake_case fields.
+        let re = &value["route_engines"][0];
+        assert_eq!(re["slot"], 0);
+        assert_eq!(re["status"], "OK");
+        assert_eq!(re["mastership_state"], "master");
+        assert_eq!(re["memory_total"], "4096 MB");
+    }
+
+    #[test]
+    fn personality_unknown_serializes_with_model_payload() {
+        let p = Personality::Unknown("FutureRouter9000".to_string());
+        let value = serde_json::to_value(&p).unwrap();
+        // Unknown is the only variant carrying data — serializes as a tagged
+        // object: {"unknown": "FutureRouter9000"}.
+        assert_eq!(value["unknown"], "FutureRouter9000");
     }
 }

@@ -2,8 +2,14 @@
 
 use std::fmt;
 
+use serde::Serialize;
+
 /// The personality (platform family) of a Junos device.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Serializes as a lowercase string for known variants (e.g., `"vsrx"`,
+/// `"mx"`) or `{"unknown": "<model>"}` for unrecognized models.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Personality {
     Mx,
     Vmx,
