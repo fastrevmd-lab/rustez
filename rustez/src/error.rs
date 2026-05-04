@@ -1,6 +1,7 @@
 //! Error types for rustEZ.
 
 use rustnetconf::error::NetconfError;
+use rustnetconf::SshConfigError;
 use thiserror::Error;
 
 /// Top-level error type for all rustEZ operations.
@@ -9,6 +10,10 @@ pub enum RustEzError {
     /// Wraps all rustnetconf errors.
     #[error("netconf error: {0}")]
     Netconf(#[from] NetconfError),
+
+    /// SSH config file parsing/loading failures.
+    #[error("ssh_config error: {0}")]
+    SshConfig(#[from] SshConfigError),
 
     /// Facts gathering failures.
     #[error("facts error: {0}")]

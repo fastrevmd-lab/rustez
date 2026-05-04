@@ -1,8 +1,10 @@
 //! Junos device connection and lifecycle management.
 
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use rustnetconf::{Client, Notification};
+use rustnetconf::transport::ssh::JumpHostConfig;
+use rustnetconf::{Client, Notification, SshConfigError, SshConfigFile};
 
 use crate::config::ConfigManager;
 use crate::error::RustEzError;
@@ -54,7 +56,74 @@ impl Device {
             gather_facts: true,
             rpc_timeout: None,
             keepalive_interval: None,
+            jump_hosts: Vec::new(),
+            proxy_command: None,
         }
+    }
+
+    /// Build a connection using settings from the user's default SSH config
+    /// (`$HOME/.ssh/config`).
+    ///
+    /// Settings derived from the config:
+    ///
+    /// - `HostName` → connect target (falls back to `alias` if unset)
+    /// - `Port` → port (falls back to NETCONF default 830)
+    /// - `User` → [`DeviceBuilder::username`]
+    /// - `IdentityFile` → [`DeviceBuilder::key_file`]
+    /// - `ProxyJump` → [`DeviceBuilder::jump_hosts`]
+    /// - `ProxyCommand` → [`DeviceBuilder::proxy_command`]
+    ///
+    /// Subsequent builder calls (e.g. `.username()`, `.password()`) override
+    /// what the config provided.
+    ///
+    /// ```rust,no_run
+    /// use rustez::Device;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// // ~/.ssh/config has `Host edge-r1` block with HostName/User/ProxyJump.
+    /// let dev = Device::connect_via_ssh_config("edge-r1")?
+    ///     .password("secret")
+    ///     .open()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn connect_via_ssh_config(alias: &str) -> Result<DeviceBuilder, SshConfigError> {
+        let path = default_ssh_config_path().ok_or_else(|| SshConfigError::Io {
+            path: PathBuf::from("~/.ssh/config"),
+            source: std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "$HOME is not set; cannot locate default ssh config",
+            ),
+        })?;
+        Self::connect_via_ssh_config_at(&path, alias)
+    }
+
+    /// Like [`Self::connect_via_ssh_config`] but reads from the explicit
+    /// `path` instead of `$HOME/.ssh/config`.
+    pub fn connect_via_ssh_config_at(
+        path: &Path,
+        alias: &str,
+    ) -> Result<DeviceBuilder, SshConfigError> {
+        let cfg = SshConfigFile::load(path)?;
+        let resolved = cfg.resolve(alias);
+
+        let host = resolved.hostname.unwrap_or_else(|| alias.to_string());
+        // NETCONF default is 830, not 22.
+        let port = resolved.port.unwrap_or(830);
+
+        Ok(DeviceBuilder {
+            host,
+            port: Some(port),
+            username: resolved.user,
+            password: None,
+            key_file: resolved.identity_file,
+            gather_facts: true,
+            rpc_timeout: None,
+            keepalive_interval: None,
+            jump_hosts: resolved.jump_hosts,
+            proxy_command: resolved.proxy_command,
+        })
     }
 
     /// Get cached facts, or gather them if not yet cached.
@@ -278,6 +347,8 @@ pub struct DeviceBuilder {
     gather_facts: bool,
     rpc_timeout: Option<Duration>,
     keepalive_interval: Option<Duration>,
+    jump_hosts: Vec<JumpHostConfig>,
+    proxy_command: Option<String>,
 }
 
 impl DeviceBuilder {
@@ -326,6 +397,30 @@ impl DeviceBuilder {
         self
     }
 
+    /// Set an OpenSSH-style `ProxyJump` chain.
+    ///
+    /// Each hop carries its own credentials and host-key-verification policy.
+    /// The hops are dialed in order: hop 0 directly, hop 1 through hop 0's
+    /// `direct-tcpip`, etc., and the final target through the last hop.
+    ///
+    /// Mutually exclusive with [`Self::proxy_command`].
+    pub fn jump_hosts(mut self, hops: Vec<JumpHostConfig>) -> Self {
+        self.jump_hosts = hops;
+        self
+    }
+
+    /// Set an OpenSSH-style `ProxyCommand`.
+    ///
+    /// The command is interpreted by `sh -c` and its stdin/stdout become
+    /// the SSH transport stream to the target. The substrings `%h` and
+    /// `%p` are replaced with the target host and port respectively.
+    ///
+    /// Mutually exclusive with [`Self::jump_hosts`].
+    pub fn proxy_command(mut self, command: &str) -> Self {
+        self.proxy_command = Some(command.to_string());
+        self
+    }
+
     /// Open the connection to the device.
     ///
     /// Establishes the SSH/NETCONF session and optionally gathers facts.
@@ -349,6 +444,12 @@ impl DeviceBuilder {
         if let Some(interval) = self.keepalive_interval {
             builder = builder.keepalive_interval(interval);
         }
+        if !self.jump_hosts.is_empty() {
+            builder = builder.jump_hosts(self.jump_hosts);
+        }
+        if let Some(ref command) = self.proxy_command {
+            builder = builder.proxy_command(command);
+        }
 
         let mut client = builder.connect().await?;
         let rpc_timeout = self.rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT);
@@ -368,6 +469,16 @@ impl DeviceBuilder {
             config_db_open: false,
         })
     }
+}
+
+/// Locate the user's default SSH config (`$HOME/.ssh/config`).
+fn default_ssh_config_path() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|home| {
+        let mut p = PathBuf::from(home);
+        p.push(".ssh");
+        p.push("config");
+        p
+    })
 }
 
 /// Log a warning for platforms with low NETCONF session limits.
@@ -420,6 +531,79 @@ mod tests {
         ));
         assert!(matches!(device.rpc(), Err(RustEzError::NotConnected)));
         assert!(matches!(device.config(), Err(RustEzError::NotConnected)));
+    }
+
+    #[test]
+    fn test_jump_hosts_builder_sets_field() {
+        let hops = vec![JumpHostConfig {
+            host: "bastion.example.com".to_string(),
+            port: 22,
+            username: "jump".to_string(),
+            auth: rustnetconf::transport::ssh::SshAuth::Agent,
+            host_key_verification:
+                rustnetconf::transport::ssh::HostKeyVerification::AcceptAll,
+        }];
+        let builder = Device::connect("10.0.0.1").jump_hosts(hops);
+        assert_eq!(builder.jump_hosts.len(), 1);
+        assert_eq!(builder.jump_hosts[0].host, "bastion.example.com");
+    }
+
+    #[test]
+    fn test_proxy_command_builder_sets_field() {
+        let builder = Device::connect("10.0.0.1")
+            .proxy_command("ssh -W %h:%p bastion.example.com");
+        assert_eq!(
+            builder.proxy_command.as_deref(),
+            Some("ssh -W %h:%p bastion.example.com")
+        );
+    }
+
+    #[test]
+    fn test_connect_via_ssh_config_at_resolves_fields() {
+        use std::io::Write;
+
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        writeln!(
+            tmp,
+            "Host edge-r1\n  HostName 10.0.0.1\n  Port 8830\n  User netconf\n  IdentityFile /tmp/id\n  ProxyJump bastion.example.com\n"
+        )
+        .unwrap();
+
+        let builder = Device::connect_via_ssh_config_at(tmp.path(), "edge-r1")
+            .expect("ssh_config resolves");
+
+        assert_eq!(builder.host, "10.0.0.1");
+        assert_eq!(builder.port, Some(8830));
+        assert_eq!(builder.username.as_deref(), Some("netconf"));
+        assert_eq!(builder.key_file.as_deref(), Some("/tmp/id"));
+        assert_eq!(builder.jump_hosts.len(), 1);
+        assert_eq!(builder.jump_hosts[0].host, "bastion.example.com");
+        assert!(builder.proxy_command.is_none());
+    }
+
+    #[test]
+    fn test_connect_via_ssh_config_at_uses_alias_when_no_hostname() {
+        use std::io::Write;
+
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        // No matching Host block — resolve returns defaults; alias is used
+        // as the connect target and port falls back to NETCONF default.
+        writeln!(tmp, "Host other\n  HostName 10.0.0.99\n").unwrap();
+
+        let builder = Device::connect_via_ssh_config_at(tmp.path(), "edge-r1")
+            .expect("ssh_config resolves");
+
+        assert_eq!(builder.host, "edge-r1");
+        assert_eq!(builder.port, Some(830));
+        assert!(builder.jump_hosts.is_empty());
+        assert!(builder.proxy_command.is_none());
+    }
+
+    #[test]
+    fn test_connect_via_ssh_config_at_missing_file() {
+        let result =
+            Device::connect_via_ssh_config_at(Path::new("/nonexistent/ssh/config"), "any");
+        assert!(matches!(result, Err(SshConfigError::Io { .. })));
     }
 
     #[tokio::test]
