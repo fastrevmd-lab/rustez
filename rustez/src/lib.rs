@@ -37,5 +37,7 @@ pub use facts::{Facts, Personality, RouteEngine};
 pub use rpc::RpcExecutor;
 
 // Re-export rustnetconf types that users commonly need
+pub use rustnetconf::transport::ssh::JumpHostConfig;
 pub use rustnetconf::Datastore;
 pub use rustnetconf::{LoadAction, LoadFormat, Notification, OpenConfigurationMode, RpcErrorInfo};
+pub use rustnetconf::{ResolvedHost, SshConfigError, SshConfigFile};
