@@ -74,13 +74,19 @@ def classify_error(exc: Exception) -> RustEzError:
     msg = str(exc)
     msg_lower = msg.lower()
 
-    # rustnetconf typed errors — match specific patterns first
+    # ── Most-specific patterns first ──
+
+    # rustnetconf typed errors
     if "channel closed:" in msg_lower:
         return ChannelClosedError(msg)
     if "message-id mismatch:" in msg_lower:
         return MessageIdMismatchError(msg)
     if "session expired:" in msg_lower:
         return SessionExpiredError(msg)
+
+    # Config load errors (before generic timeout/connect checks)
+    if "load-configuration" in msg_lower or "configuration load" in msg_lower:
+        return ConfigLoadError(msg)
 
     # RPC timeout (rustnetconf "RPC timeout after ..." or rustez "timeout:")
     if "rpc timeout" in msg_lower or msg_lower.startswith("timeout:"):
@@ -91,7 +97,7 @@ def classify_error(exc: Exception) -> RustEzError:
         return ConnectAuthError(msg)
 
     # Connection timeout (non-RPC)
-    if "timed out" in msg_lower or "timeout" in msg_lower:
+    if "timed out" in msg_lower or "connect" in msg_lower and "timeout" in msg_lower:
         return ConnectTimeoutError(msg)
 
     # Transport errors
@@ -105,9 +111,5 @@ def classify_error(exc: Exception) -> RustEzError:
     # RPC server errors
     if "server error:" in msg_lower or "rpc error:" in msg_lower:
         return RpcError(msg)
-
-    # Config errors
-    if "config" in msg_lower or "load" in msg_lower:
-        return ConfigLoadError(msg)
 
     return RustEzError(msg)

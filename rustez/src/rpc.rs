@@ -118,10 +118,16 @@ pub fn build_rpc_xml(rpc_name: &str, args: &[(&str, &str)]) -> Result<String, Ru
 /// Validate that a string is safe for use as an XML element name or attribute value.
 ///
 /// Allows alphanumeric characters, hyphens, underscores, and dots.
+/// Names must start with a letter or underscore per the XML specification.
 #[allow(clippy::result_large_err)]
 fn validate_xml_name(name: &str) -> Result<(), RustEzError> {
     if name.is_empty() {
         return Err(RustEzError::Rpc("XML name cannot be empty".to_string()));
+    }
+    if !name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+        return Err(RustEzError::Rpc(format!(
+            "invalid XML name: must start with a letter or underscore: {name:?}"
+        )));
     }
     if !name
         .chars()
@@ -136,18 +142,10 @@ fn validate_xml_name(name: &str) -> Result<(), RustEzError> {
 
 /// Extract text content from `<output>` elements, or return the raw response.
 fn parse_cli_output(xml: &str) -> String {
-    // Simple extraction: find <output>...</output>
     if let Some(start) = xml.find("<output>") {
         let content_start = start + "<output>".len();
         if let Some(end) = xml[content_start..].find("</output>") {
             return xml[content_start..content_start + end].to_string();
-        }
-    }
-    // If wrapped in <cli> with nested <output>
-    if let Some(start) = xml.find("<output>") {
-        let after = &xml[start + "<output>".len()..];
-        if let Some(end) = after.find("</output>") {
-            return after[..end].to_string();
         }
     }
     xml.to_string()

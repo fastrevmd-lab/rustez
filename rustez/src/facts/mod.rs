@@ -231,7 +231,10 @@ pub fn unwrap_multi_re(xml: &str) -> Vec<(Option<String>, String)> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(_) => break,
+            Err(err) => {
+                tracing::warn!("XML parse error in unwrap_multi_re: {err}");
+                break;
+            }
             _ => {}
         }
         buf.clear();

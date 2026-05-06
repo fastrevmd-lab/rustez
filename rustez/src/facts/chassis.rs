@@ -51,7 +51,10 @@ pub(crate) fn parse_serial_number(xml: &str) -> Option<String> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(_) => break,
+            Err(err) => {
+                tracing::warn!("XML parse error in chassis facts: {err}");
+                break;
+            }
             _ => {}
         }
         buf.clear();
