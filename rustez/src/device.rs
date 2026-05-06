@@ -248,6 +248,11 @@ impl Device {
         self.client.as_ref().is_some_and(|c| c.session_alive())
     }
 
+    /// Whether a configuration database is currently open (locked).
+    pub fn is_config_db_open(&self) -> bool {
+        self.config_db_open
+    }
+
     /// Reconnect to the device using the original connection parameters.
     ///
     /// Closes the current session and establishes a fresh SSH/NETCONF connection.
