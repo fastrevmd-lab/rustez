@@ -70,7 +70,10 @@ pub(crate) fn parse_software_info(xml: &str) -> SoftwareInfo {
                 current_element.clear();
             }
             Ok(Event::Eof) => break,
-            Err(_) => break,
+            Err(err) => {
+                tracing::warn!("XML parse error in software facts: {err}");
+                break;
+            }
             _ => {}
         }
         buf.clear();

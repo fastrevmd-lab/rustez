@@ -22,11 +22,6 @@ fn to_py_err(err: rustez::RustEzError) -> PyErr {
     PyRuntimeError::new_err(format!("{err}"))
 }
 
-/// Convert a NetconfError to a Python RuntimeError string.
-fn to_netconf_err(err: rustnetconf::NetconfError) -> PyErr {
-    PyRuntimeError::new_err(format!("{err}"))
-}
-
 /// Lock a Mutex, converting poison errors to Python RuntimeError.
 fn lock_mutex<T>(mutex: &Mutex<T>) -> PyResult<MutexGuard<'_, T>> {
     mutex
@@ -398,32 +393,36 @@ impl PyDevice {
     }
 
     /// Get candidate diff. Returns diff string or empty string.
-    fn config_diff(&self, py: Python<'_>) -> PyResult<String> {
+    #[pyo3(signature = (rb_id=None))]
+    fn config_diff(&self, py: Python<'_>, rb_id: Option<u32>) -> PyResult<String> {
+        let _ = rb_id; // reserved for future rollback-id support
         py.allow_threads(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
                 .ok_or_else(|| PyRuntimeError::new_err("not connected"))?;
-            let client = dev.client_mut().map_err(to_py_err)?;
-            let response = self
-                .runtime
-                .block_on(client.get_configuration_compare(0))
-                .map_err(to_netconf_err)?;
-            Ok(response)
+            let mut cfg = dev.config().map_err(to_py_err)?;
+            let result = self.runtime.block_on(cfg.diff()).map_err(to_py_err)?;
+            Ok(result.unwrap_or_default())
         })
     }
 
-    /// Commit candidate config.
-    fn config_commit(&self, py: Python<'_>) -> PyResult<()> {
+    /// Commit candidate config, optionally with a log comment.
+    #[pyo3(signature = (comment=None))]
+    fn config_commit(&self, py: Python<'_>, comment: Option<&str>) -> PyResult<()> {
         py.allow_threads(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
                 .ok_or_else(|| PyRuntimeError::new_err("not connected"))?;
-            let client = dev.client_mut().map_err(to_py_err)?;
-            self.runtime
-                .block_on(client.commit_configuration())
-                .map_err(to_netconf_err)
+            let mut cfg = dev.config().map_err(to_py_err)?;
+            match comment {
+                Some(msg) => self
+                    .runtime
+                    .block_on(cfg.commit_with_comment(msg))
+                    .map_err(to_py_err),
+                None => self.runtime.block_on(cfg.commit()).map_err(to_py_err),
+            }
         })
     }
 
@@ -448,10 +447,8 @@ impl PyDevice {
             let dev = guard
                 .as_mut()
                 .ok_or_else(|| PyRuntimeError::new_err("not connected"))?;
-            let client = dev.client_mut().map_err(to_py_err)?;
-            self.runtime
-                .block_on(client.rollback_configuration(id))
-                .map_err(to_netconf_err)
+            let mut cfg = dev.config().map_err(to_py_err)?;
+            self.runtime.block_on(cfg.rollback(id)).map_err(to_py_err)
         })
     }
 

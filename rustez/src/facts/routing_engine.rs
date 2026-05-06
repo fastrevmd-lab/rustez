@@ -89,7 +89,10 @@ pub(crate) fn parse_route_engines(xml: &str) -> Vec<RouteEngine> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(_) => break,
+            Err(err) => {
+                tracing::warn!("XML parse error in routing engine facts: {err}");
+                break;
+            }
             _ => {}
         }
         buf.clear();

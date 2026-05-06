@@ -487,7 +487,7 @@ class Config:
             Diff string, or None if no changes.
         """
         try:
-            result = self._native.config_diff()
+            result = self._native.config_diff(rb_id=rb_id)
             return result if result else None
         except RuntimeError as exc:
             raise classify_error(exc) from exc
@@ -496,9 +496,7 @@ class Config:
         """Commit the candidate configuration.
 
         Args:
-            comment: Optional commit comment (note: rustEZ commit comment
-                support requires the commit RPC to include <log> element —
-                TODO: add to native layer).
+            comment: Optional commit comment recorded in the Junos commit log.
             confirm: If > 0, use commit-confirmed with this many minutes
                 (max 720 / 12 hours).
             **kwargs: Ignored (PyEZ compat).
@@ -512,6 +510,8 @@ class Config:
                 raise ValueError(f"confirm={confirm} exceeds max 720 minutes (12h)")
             if confirm > 0:
                 self._native.config_commit_confirmed(confirm * 60)
+            elif comment:
+                self._native.config_commit(comment=comment)
             else:
                 self._native.config_commit()
         except RuntimeError as exc:
