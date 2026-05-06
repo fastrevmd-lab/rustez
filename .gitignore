@@ -6,3 +6,5 @@ Cargo.lock
 __pycache__/
 *.pyc
 *.so
+.serena/
+wheels/
