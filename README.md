@@ -163,7 +163,7 @@ Verified on a real device with all integration tests passing:
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf) | 0.8.2 | NETCONF client (SSH transport, RFC 6241/5277) |
+| [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf) | 0.10 | NETCONF client (SSH transport, RFC 6241/5277) |
 | [tokio](https://crates.io/crates/tokio) | 1.50 | Async runtime |
 | [quick-xml](https://crates.io/crates/quick-xml) | 0.37 | XML parsing |
 | [thiserror](https://crates.io/crates/thiserror) | 2.0 | Error derive macros |
@@ -175,22 +175,21 @@ Verified on a real device with all integration tests passing:
 | Crate | Version | Purpose |
 |-------|---------|---------|
 | [pyo3](https://crates.io/crates/pyo3) | 0.24 | Python FFI bindings |
-| rustez | 0.8.2 | Core library |
-| rustnetconf | 0.8.2 | NETCONF client |
+| rustez | 0.9.0 | Core library |
+| rustnetconf | 0.10 | NETCONF client |
 | tokio | 1.50 | Async runtime |
 
 Python runtime dependency: [lxml](https://pypi.org/project/lxml/) >= 4.9.0
 
 ## Security Audit
 
-Last audited: 2026-04-12 via `cargo audit`
+Last audited: 2026-05-06 via `cargo audit` (runs in CI on every PR)
 
 | Severity | Crate | Advisory | Description | Fix Available |
 |----------|-------|----------|-------------|---------------|
-| Medium (5.9) | `rsa` 0.10.0-rc.17 | [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) | Marvin Attack — potential key recovery through timing sidechannels | No upstream fix yet |
-| Warning | `rand` 0.8.5 | [RUSTSEC-2026-0097](https://rustsec.org/advisories/RUSTSEC-2026-0097) | Unsound with custom logger using `rand::rng()` | Transitive via `pageant` |
+| Medium (5.9) | `rsa` 0.10.0-rc.16 | [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071) | Marvin Attack — potential key recovery through timing sidechannels | No upstream fix yet |
 
-Both are transitive dependencies through `russh` (used by rustnetconf for SSH transport). Neither is directly exploitable in rustEZ's use case — connections are to managed network devices, not public-facing services. These will resolve when upstream `russh` updates its dependency tree.
+Transitive dependency through `russh` (used by rustnetconf for SSH transport). Not directly exploitable in rustEZ's use case — connections are to managed network devices, not public-facing services. Will resolve when upstream `russh` updates its dependency tree. Ignored in CI via `cargo audit --ignore RUSTSEC-2023-0071`.
 
 Run `cargo audit` to check for the latest advisories.
 
