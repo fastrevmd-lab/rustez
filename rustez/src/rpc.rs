@@ -65,8 +65,7 @@ impl<'a> RpcExecutor<'a> {
         &mut self,
         xml: &str,
     ) -> Result<(String, Vec<RpcErrorInfo>), RustEzError> {
-        let result =
-            tokio::time::timeout(self.timeout, self.client.rpc_with_warnings(xml)).await;
+        let result = tokio::time::timeout(self.timeout, self.client.rpc_with_warnings(xml)).await;
         match result {
             Ok(inner) => Ok(inner?),
             Err(_) => Err(RustEzError::Timeout(format!(
@@ -108,7 +107,9 @@ pub fn build_rpc_xml(rpc_name: &str, args: &[(&str, &str)]) -> Result<String, Ru
         let hyphenated_key = key.replace('_', "-");
         validate_xml_name(&hyphenated_key)?;
         let escaped_value = escape(*value);
-        xml.push_str(&format!("<{hyphenated_key}>{escaped_value}</{hyphenated_key}>"));
+        xml.push_str(&format!(
+            "<{hyphenated_key}>{escaped_value}</{hyphenated_key}>"
+        ));
     }
     xml.push_str(&format!("</{hyphenated_name}>"));
     Ok(xml)
@@ -122,7 +123,10 @@ fn validate_xml_name(name: &str) -> Result<(), RustEzError> {
     if name.is_empty() {
         return Err(RustEzError::Rpc("XML name cannot be empty".to_string()));
     }
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
         return Err(RustEzError::Rpc(format!(
             "invalid XML name: contains disallowed characters: {name:?}"
         )));

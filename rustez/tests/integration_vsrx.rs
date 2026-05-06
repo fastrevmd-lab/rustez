@@ -32,8 +32,8 @@ fn vsrx_builder() -> DeviceBuilder {
         };
         builder = builder.key_file(&expanded);
     } else {
-        let pass = env::var("RUSTEZ_VSRX_PASS")
-            .expect("RUSTEZ_VSRX_PASS or RUSTEZ_VSRX_KEY must be set");
+        let pass =
+            env::var("RUSTEZ_VSRX_PASS").expect("RUSTEZ_VSRX_PASS or RUSTEZ_VSRX_KEY must be set");
         builder = builder.password(&pass);
     }
 
@@ -56,7 +56,10 @@ async fn test_connect_and_gather_facts() {
     assert!(!facts.hostname.is_empty(), "hostname should not be empty");
     assert!(!facts.model.is_empty(), "model should not be empty");
     assert!(!facts.version.is_empty(), "version should not be empty");
-    assert!(!facts.serial_number.is_empty(), "serial should not be empty");
+    assert!(
+        !facts.serial_number.is_empty(),
+        "serial should not be empty"
+    );
 
     println!("hostname: {}", facts.hostname);
     println!("model: {}", facts.model);
@@ -79,10 +82,7 @@ async fn test_cli_show_interfaces() {
         .await
         .expect("failed to connect");
 
-    let output = dev
-        .cli("show interfaces terse")
-        .await
-        .expect("cli failed");
+    let output = dev.cli("show interfaces terse").await.expect("cli failed");
 
     assert!(!output.is_empty(), "CLI output should not be empty");
     println!("show interfaces terse:\n{output}");
@@ -111,9 +111,7 @@ async fn test_config_load_and_commit() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let payload = ConfigPayload::Text(
-        format!("system {{ host-name rustez-it3-{timestamp}; }}"),
-    );
+    let payload = ConfigPayload::Text(format!("system {{ host-name rustez-it3-{timestamp}; }}"));
     cfg.load(payload).await.expect("load failed");
 
     let diff = cfg.diff().await.expect("diff failed");
@@ -147,9 +145,7 @@ async fn test_config_rollback() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let payload = ConfigPayload::Text(
-        format!("system {{ host-name rustez-it4-{timestamp}; }}"),
-    );
+    let payload = ConfigPayload::Text(format!("system {{ host-name rustez-it4-{timestamp}; }}"));
     cfg.load(payload).await.expect("load failed");
     cfg.commit().await.expect("commit failed");
 
@@ -179,7 +175,10 @@ async fn test_event_subscription() {
         .await
         .expect("failed to connect listener");
 
-    assert!(!listener.has_subscription(), "should not have subscription yet");
+    assert!(
+        !listener.has_subscription(),
+        "should not have subscription yet"
+    );
 
     // Subscribe to the default NETCONF event stream
     let sub_result = listener.create_subscription(None, None, None, None).await;
@@ -192,7 +191,10 @@ async fn test_event_subscription() {
         }
     }
     sub_result.expect("create_subscription failed");
-    assert!(listener.has_subscription(), "should have active subscription");
+    assert!(
+        listener.has_subscription(),
+        "should have active subscription"
+    );
 
     // Session 2: make a config change to trigger a notification
     let mut changer = vsrx_builder()
@@ -208,9 +210,8 @@ async fn test_event_subscription() {
         .as_secs();
     let mut cfg = changer.config().expect("config manager failed");
     cfg.lock().await.expect("lock failed");
-    let payload = rustez::ConfigPayload::Text(
-        format!("system {{ host-name rustez-it5-{timestamp}; }}"),
-    );
+    let payload =
+        rustez::ConfigPayload::Text(format!("system {{ host-name rustez-it5-{timestamp}; }}"));
     cfg.load(payload).await.expect("load failed");
     cfg.commit().await.expect("commit failed");
     cfg.unlock().await.expect("unlock failed");

@@ -63,15 +63,9 @@ pub(crate) async fn gather_facts(
         .1;
     let sw_info = software::parse_software_info(first_sw_xml);
 
-    let hostname = sw_info
-        .hostname
-        .unwrap_or_else(|| "unknown".to_string());
-    let model = sw_info
-        .model
-        .unwrap_or_else(|| "unknown".to_string());
-    let version = sw_info
-        .version
-        .unwrap_or_else(|| "unknown".to_string());
+    let hostname = sw_info.hostname.unwrap_or_else(|| "unknown".to_string());
+    let model = sw_info.model.unwrap_or_else(|| "unknown".to_string());
+    let version = sw_info.version.unwrap_or_else(|| "unknown".to_string());
 
     // Derive FQDN/domain from hostname
     let (domain, fqdn) = if hostname.contains('.') {
@@ -90,11 +84,10 @@ pub(crate) async fn gather_facts(
             .ok_or_else(|| RustEzError::Facts("empty chassis-inventory response".to_string()))?
             .1,
     )
-        .unwrap_or_else(|| "unknown".to_string());
+    .unwrap_or_else(|| "unknown".to_string());
 
     // 3. Route engine information
-    let re_xml =
-        rpc_with_timeout(client, "<get-route-engine-information/>", timeout).await?;
+    let re_xml = rpc_with_timeout(client, "<get-route-engine-information/>", timeout).await?;
     let re_items = unwrap_multi_re(&re_xml);
 
     let mut route_engines = Vec::new();
@@ -184,13 +177,10 @@ pub fn unwrap_multi_re(xml: &str) -> Vec<(Option<String>, String)> {
                         item_content.push_str(name);
                         for attr in tag.attributes().flatten() {
                             item_content.push(' ');
-                            item_content.push_str(
-                                std::str::from_utf8(attr.key.as_ref()).unwrap_or(""),
-                            );
+                            item_content
+                                .push_str(std::str::from_utf8(attr.key.as_ref()).unwrap_or(""));
                             item_content.push_str("=\"");
-                            item_content.push_str(
-                                &String::from_utf8_lossy(&attr.value),
-                            );
+                            item_content.push_str(&String::from_utf8_lossy(&attr.value));
                             item_content.push('"');
                         }
                         item_content.push('>');
@@ -212,13 +202,9 @@ pub fn unwrap_multi_re(xml: &str) -> Vec<(Option<String>, String)> {
                 item_content.push_str(name);
                 for attr in tag.attributes().flatten() {
                     item_content.push(' ');
-                    item_content.push_str(
-                        std::str::from_utf8(attr.key.as_ref()).unwrap_or(""),
-                    );
+                    item_content.push_str(std::str::from_utf8(attr.key.as_ref()).unwrap_or(""));
                     item_content.push_str("=\"");
-                    item_content.push_str(
-                        &String::from_utf8_lossy(&attr.value),
-                    );
+                    item_content.push_str(&String::from_utf8_lossy(&attr.value));
                     item_content.push('"');
                 }
                 item_content.push_str("/>");

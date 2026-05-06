@@ -127,8 +127,7 @@ impl<'a> ConfigManager<'a> {
     /// Returns `Some(diff)` if there are changes, `None` if clean.
     pub async fn diff(&mut self) -> Result<Option<String>, RustEzError> {
         let timeout = self.timeout;
-        let response: String =
-            timed(timeout, self.client.get_configuration_compare(0)).await?;
+        let response: String = timed(timeout, self.client.get_configuration_compare(0)).await?;
 
         let diff = parse_configuration_output(&response);
         if diff.is_empty() {
@@ -232,12 +231,8 @@ async fn timed<T>(
 fn payload_to_load_args(payload: &ConfigPayload) -> (LoadAction, LoadFormat, String) {
     match payload {
         ConfigPayload::Xml(xml) => (LoadAction::Merge, LoadFormat::Xml, xml.clone()),
-        ConfigPayload::Text(text) => {
-            (LoadAction::Merge, LoadFormat::Text, text.clone())
-        }
-        ConfigPayload::Set(set_cmds) => {
-            (LoadAction::Set, LoadFormat::Text, set_cmds.clone())
-        }
+        ConfigPayload::Text(text) => (LoadAction::Merge, LoadFormat::Text, text.clone()),
+        ConfigPayload::Set(set_cmds) => (LoadAction::Set, LoadFormat::Text, set_cmds.clone()),
     }
 }
 
@@ -274,9 +269,7 @@ fn build_load_xml(payload: &ConfigPayload) -> String {
 /// The comment is XML-escaped to prevent injection — any string is safe.
 fn build_commit_with_comment_xml(comment: &str) -> String {
     let escaped = escape(comment);
-    format!(
-        "<{NC}commit-configuration><{NC}log>{escaped}</{NC}log></{NC}commit-configuration>"
-    )
+    format!("<{NC}commit-configuration><{NC}log>{escaped}</{NC}log></{NC}commit-configuration>")
 }
 
 /// Extract text from `<configuration-output>` tags, or return trimmed response.
@@ -296,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_build_load_xml_xml_payload() {
-        let payload = ConfigPayload::Xml("<system><host-name>test</host-name></system>".to_string());
+        let payload =
+            ConfigPayload::Xml("<system><host-name>test</host-name></system>".to_string());
         let xml = build_load_xml(&payload);
         assert_eq!(
             xml,
@@ -309,7 +303,8 @@ mod tests {
         let payload = ConfigPayload::Text("system { host-name test; }".to_string());
         let xml = build_load_xml(&payload);
         assert!(xml.contains(r#"format="text""#));
-        assert!(xml.contains("<nc:configuration-text>system { host-name test; }</nc:configuration-text>"));
+        assert!(xml
+            .contains("<nc:configuration-text>system { host-name test; }</nc:configuration-text>"));
     }
 
     #[test]
@@ -318,7 +313,9 @@ mod tests {
         let xml = build_load_xml(&payload);
         assert!(xml.contains(r#"action="set""#));
         assert!(xml.contains(r#"format="text""#));
-        assert!(xml.contains("<nc:configuration-set>set system host-name test</nc:configuration-set>"));
+        assert!(
+            xml.contains("<nc:configuration-set>set system host-name test</nc:configuration-set>")
+        );
     }
 
     #[test]

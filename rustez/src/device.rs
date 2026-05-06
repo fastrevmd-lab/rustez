@@ -185,7 +185,11 @@ impl Device {
     #[allow(clippy::result_large_err)]
     pub fn config(&mut self) -> Result<ConfigManager<'_>, RustEzError> {
         let client = self.client.as_mut().ok_or(RustEzError::NotConnected)?;
-        Ok(ConfigManager::new(client, self.rpc_timeout, &mut self.config_db_open))
+        Ok(ConfigManager::new(
+            client,
+            self.rpc_timeout,
+            &mut self.config_db_open,
+        ))
     }
 
     /// Open a private or exclusive configuration database (Junos).
@@ -241,9 +245,7 @@ impl Device {
 
     /// Check if the NETCONF session is alive (in-memory check, no RPC sent).
     pub fn session_alive(&self) -> bool {
-        self.client
-            .as_ref()
-            .is_some_and(|c| c.session_alive())
+        self.client.as_ref().is_some_and(|c| c.session_alive())
     }
 
     /// Reconnect to the device using the original connection parameters.
@@ -314,16 +316,12 @@ impl Device {
 
     /// Check if any notifications are buffered without blocking.
     pub fn has_notifications(&self) -> bool {
-        self.client
-            .as_ref()
-            .is_some_and(|c| c.has_notifications())
+        self.client.as_ref().is_some_and(|c| c.has_notifications())
     }
 
     /// Whether this session has an active notification subscription.
     pub fn has_subscription(&self) -> bool {
-        self.client
-            .as_ref()
-            .is_some_and(|c| c.has_subscription())
+        self.client.as_ref().is_some_and(|c| c.has_subscription())
     }
 
     /// Close the NETCONF session gracefully.
@@ -540,8 +538,7 @@ mod tests {
             port: 22,
             username: "jump".to_string(),
             auth: rustnetconf::transport::ssh::SshAuth::Agent,
-            host_key_verification:
-                rustnetconf::transport::ssh::HostKeyVerification::AcceptAll,
+            host_key_verification: rustnetconf::transport::ssh::HostKeyVerification::AcceptAll,
         }];
         let builder = Device::connect("10.0.0.1").jump_hosts(hops);
         assert_eq!(builder.jump_hosts.len(), 1);
@@ -550,8 +547,7 @@ mod tests {
 
     #[test]
     fn test_proxy_command_builder_sets_field() {
-        let builder = Device::connect("10.0.0.1")
-            .proxy_command("ssh -W %h:%p bastion.example.com");
+        let builder = Device::connect("10.0.0.1").proxy_command("ssh -W %h:%p bastion.example.com");
         assert_eq!(
             builder.proxy_command.as_deref(),
             Some("ssh -W %h:%p bastion.example.com")
@@ -569,8 +565,8 @@ mod tests {
         )
         .unwrap();
 
-        let builder = Device::connect_via_ssh_config_at(tmp.path(), "edge-r1")
-            .expect("ssh_config resolves");
+        let builder =
+            Device::connect_via_ssh_config_at(tmp.path(), "edge-r1").expect("ssh_config resolves");
 
         assert_eq!(builder.host, "10.0.0.1");
         assert_eq!(builder.port, Some(8830));
@@ -590,8 +586,8 @@ mod tests {
         // as the connect target and port falls back to NETCONF default.
         writeln!(tmp, "Host other\n  HostName 10.0.0.99\n").unwrap();
 
-        let builder = Device::connect_via_ssh_config_at(tmp.path(), "edge-r1")
-            .expect("ssh_config resolves");
+        let builder =
+            Device::connect_via_ssh_config_at(tmp.path(), "edge-r1").expect("ssh_config resolves");
 
         assert_eq!(builder.host, "edge-r1");
         assert_eq!(builder.port, Some(830));
@@ -601,8 +597,7 @@ mod tests {
 
     #[test]
     fn test_connect_via_ssh_config_at_missing_file() {
-        let result =
-            Device::connect_via_ssh_config_at(Path::new("/nonexistent/ssh/config"), "any");
+        let result = Device::connect_via_ssh_config_at(Path::new("/nonexistent/ssh/config"), "any");
         assert!(matches!(result, Err(SshConfigError::Io { .. })));
     }
 
