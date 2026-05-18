@@ -14,7 +14,7 @@ jobs:
     name: Build manylinux (x86_64)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build wheel
         uses: PyO3/maturin-action@v1
@@ -23,7 +23,7 @@ jobs:
           manylinux: auto
           args: --release -m rustez-py/Cargo.toml --out dist -i python3.12
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-manylinux-x86_64
           path: dist/*.whl
@@ -32,7 +32,7 @@ jobs:
     name: Build musllinux (x86_64)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build wheel
         uses: PyO3/maturin-action@v1
@@ -41,7 +41,7 @@ jobs:
           manylinux: musllinux_1_2
           args: --release -m rustez-py/Cargo.toml --out dist -i python3.12
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-musllinux-x86_64
           path: dist/*.whl
@@ -54,7 +54,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheels-*
           path: dist
