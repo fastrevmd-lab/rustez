@@ -401,16 +401,21 @@ impl PyDevice {
     }
 
     /// Get candidate diff. Returns diff string or empty string.
+    ///
+    /// `rb_id` selects the rollback ID to compare against (0 = running).
     #[pyo3(signature = (rb_id=None))]
     fn config_diff(&self, py: Python<'_>, rb_id: Option<u32>) -> PyResult<String> {
-        let _ = rb_id; // reserved for future rollback-id support
+        let rb_id = rb_id.unwrap_or(0);
         py.allow_threads(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
                 .ok_or_else(|| PyRuntimeError::new_err("not connected"))?;
             let mut cfg = dev.config().map_err(to_py_err)?;
-            let result = self.runtime.block_on(cfg.diff()).map_err(to_py_err)?;
+            let result = self
+                .runtime
+                .block_on(cfg.diff_against(rb_id))
+                .map_err(to_py_err)?;
             Ok(result.unwrap_or_default())
         })
     }

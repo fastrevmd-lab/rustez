@@ -139,12 +139,36 @@ impl<'a> ConfigManager<'a> {
         result
     }
 
-    /// Show the candidate diff (uncommitted changes).
+    /// Show the candidate diff against the running configuration.
     ///
     /// Returns `Some(diff)` if there are changes, `None` if clean.
+    /// Equivalent to [`diff_against(0)`](Self::diff_against).
     pub async fn diff(&mut self) -> Result<Option<String>, RustEzError> {
+        self.diff_against(0).await
+    }
+
+    /// Show the candidate diff against a specific rollback ID.
+    ///
+    /// `rb_id` selects which historical configuration to compare against:
+    /// `0` is the running configuration, `1` is the previous commit, and
+    /// so on up to the platform-specific rollback retention limit
+    /// (typically 49 on Junos).
+    ///
+    /// Returns `Some(diff)` if the two configurations differ, `None` if
+    /// they are identical.
+    ///
+    /// ```rust,no_run
+    /// # use rustez::Device;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut dev = Device::connect("10.0.0.1").open().await?;
+    /// let mut cfg = dev.config()?;
+    /// let diff_vs_prev_commit = cfg.diff_against(1).await?;
+    /// # Ok(()) }
+    /// ```
+    pub async fn diff_against(&mut self, rb_id: u32) -> Result<Option<String>, RustEzError> {
         let timeout = self.timeout;
-        let response: String = timed(timeout, self.client.get_configuration_compare(0)).await?;
+        let response: String =
+            timed(timeout, self.client.get_configuration_compare(rb_id)).await?;
 
         let diff = parse_configuration_output(&response);
         if diff.is_empty() {

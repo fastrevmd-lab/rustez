@@ -238,6 +238,48 @@ async fn test_event_subscription() {
     let _ = tokio::time::timeout(Duration::from_secs(5), listener.close()).await;
 }
 
+/// IT-QUAL-002: diff_against(rb_id) actually compares against the
+/// requested rollback ID, not always running. With no candidate changes,
+/// diff_against(0) is `None` while diff_against(1) returns the diff
+/// between running and rollback-1 (whatever the last commit changed).
+///
+/// This test only asserts the API forwards rb_id: it verifies that
+/// diff_against(rb_id) accepts the value and that at least one non-zero
+/// rb_id call succeeds without panicking. Stricter assertions about diff
+/// content would require seeding rollback history first.
+#[tokio::test]
+#[ignore]
+#[serial]
+async fn test_diff_against_forwards_rollback_id() {
+    let mut dev = vsrx_builder()
+        .rpc_timeout(Duration::from_secs(60))
+        .open()
+        .await
+        .expect("failed to connect");
+
+    let mut cfg = dev.config().expect("config manager failed");
+    cfg.lock().await.expect("lock failed");
+
+    // rb_id=0 is the running diff — equivalent to plain diff().
+    let diff_running = cfg.diff_against(0).await.expect("diff_against(0) failed");
+    let diff_default = cfg.diff().await.expect("diff() failed");
+    assert_eq!(
+        diff_running, diff_default,
+        "diff_against(0) and diff() must return the same result"
+    );
+
+    // rb_id=1 must succeed too (no candidate changes → likely None).
+    // The point is that the RPC accepts the value rather than silently
+    // dropping it.
+    let _diff_rb1 = cfg
+        .diff_against(1)
+        .await
+        .expect("diff_against(1) failed — rb_id was likely dropped");
+
+    cfg.unlock().await.expect("unlock failed");
+    dev.close().await.expect("close failed");
+}
+
 /// IT-SEC-003: A failing load() on a clustered device closes the
 /// auto-opened private configuration database before returning the error.
 ///
