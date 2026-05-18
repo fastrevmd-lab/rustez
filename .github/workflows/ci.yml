@@ -19,6 +19,9 @@ jobs:
         with:
           components: clippy
 
+      - name: Check package version alignment
+        run: python3 scripts/check_versions.py
+
       - name: cargo check (workspace)
         run: cargo check
 
