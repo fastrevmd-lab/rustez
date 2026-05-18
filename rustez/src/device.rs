@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use rustnetconf::transport::ssh::JumpHostConfig;
+use rustnetconf::transport::ssh::{HostKeyVerification, JumpHostConfig};
 use rustnetconf::{Client, Notification, SshConfigError, SshConfigFile};
 
 use crate::config::ConfigManager;
@@ -58,6 +58,7 @@ impl Device {
             keepalive_interval: None,
             jump_hosts: Vec::new(),
             proxy_command: None,
+            host_key_verification: None,
         }
     }
 
@@ -123,6 +124,7 @@ impl Device {
             keepalive_interval: None,
             jump_hosts: resolved.jump_hosts,
             proxy_command: resolved.proxy_command,
+            host_key_verification: None,
         })
     }
 
@@ -352,6 +354,7 @@ pub struct DeviceBuilder {
     keepalive_interval: Option<Duration>,
     jump_hosts: Vec<JumpHostConfig>,
     proxy_command: Option<String>,
+    host_key_verification: Option<HostKeyVerification>,
 }
 
 impl DeviceBuilder {
@@ -424,6 +427,20 @@ impl DeviceBuilder {
         self
     }
 
+    /// Set the SSH host-key verification policy for the final target.
+    ///
+    /// When unset, rustnetconf's default applies — currently
+    /// [`HostKeyVerification::AcceptAll`], which logs a warning and is
+    /// **insecure** (vulnerable to MITM). Production callers should pin a
+    /// fingerprint with [`HostKeyVerification::Fingerprint`].
+    ///
+    /// Obtain a device fingerprint with:
+    /// `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` (on the device).
+    pub fn host_key_verification(mut self, policy: HostKeyVerification) -> Self {
+        self.host_key_verification = Some(policy);
+        self
+    }
+
     /// Open the connection to the device.
     ///
     /// Establishes the SSH/NETCONF session and optionally gathers facts.
@@ -452,6 +469,9 @@ impl DeviceBuilder {
         }
         if let Some(ref command) = self.proxy_command {
             builder = builder.proxy_command(command);
+        }
+        if let Some(policy) = self.host_key_verification {
+            builder = builder.host_key_verification(policy);
         }
 
         let mut client = builder.connect().await?;
@@ -557,6 +577,26 @@ mod tests {
             builder.proxy_command.as_deref(),
             Some("ssh -W %h:%p bastion.example.com")
         );
+    }
+
+    #[test]
+    fn test_host_key_verification_builder_sets_field() {
+        use rustnetconf::transport::ssh::HostKeyVerification;
+
+        let builder = Device::connect("10.0.0.1")
+            .host_key_verification(HostKeyVerification::Fingerprint("abc123".to_string()));
+        assert!(matches!(
+            builder.host_key_verification,
+            Some(HostKeyVerification::Fingerprint(ref fp)) if fp == "abc123"
+        ));
+    }
+
+    #[test]
+    fn test_host_key_verification_default_is_none() {
+        // Builders that do not call host_key_verification() leave the field unset,
+        // preserving rustnetconf's default behavior (AcceptAll) for backward compatibility.
+        let builder = Device::connect("10.0.0.1");
+        assert!(builder.host_key_verification.is_none());
     }
 
     #[test]

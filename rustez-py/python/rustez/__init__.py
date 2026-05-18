@@ -220,6 +220,7 @@ class Device:
         timeout: int = 30,
         ssh_private_key_file: str | None = None,
         keepalive_interval: int | None = None,
+        host_key_fingerprint: str | None = None,
         **kwargs,
     ) -> None:
         """Initialize a device connection (does not connect yet).
@@ -232,6 +233,12 @@ class Device:
             timeout: Per-RPC timeout in seconds.
             ssh_private_key_file: Path to SSH private key file (optional).
             keepalive_interval: Seconds between idle session probes (default: disabled).
+            host_key_fingerprint: SHA-256 fingerprint of the device's SSH host
+                key to pin against MITM. Format: ``"SHA256:<base64>"`` or just
+                ``"<base64>"``. When omitted, the underlying transport accepts
+                any host key (logs a warning) — **insecure** for production.
+                Obtain with ``ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub``
+                on the device.
             **kwargs: Ignored (for PyEZ compat).
         """
         self._native = _PyDevice(
@@ -242,6 +249,7 @@ class Device:
             timeout=timeout,
             keepalive_interval=keepalive_interval,
             ssh_private_key_file=ssh_private_key_file,
+            host_key_fingerprint=host_key_fingerprint,
         )
         self._facts: _FactsDict = _FactsDict()
         self._rpc = _RpcProxy(self._native)

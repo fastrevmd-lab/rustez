@@ -14,7 +14,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 use rustez::config::ConfigPayload;
-use rustez::{Device, OpenConfigurationMode};
+use rustez::{Device, HostKeyVerification, OpenConfigurationMode};
 use rustnetconf::LoadAction;
 
 /// Convert a RustEzError to a Python RuntimeError string.
@@ -44,13 +44,15 @@ struct PyDevice {
     timeout: u64,
     keepalive_interval: Option<u64>,
     ssh_private_key_file: Option<String>,
+    host_key_fingerprint: Option<String>,
 }
 
 #[pymethods]
 impl PyDevice {
     /// Create a new PyDevice (does NOT connect yet — call .open()).
     #[new]
-    #[pyo3(signature = (host, username, password, port=830, timeout=30, keepalive_interval=None, ssh_private_key_file=None))]
+    #[pyo3(signature = (host, username, password, port=830, timeout=30, keepalive_interval=None, ssh_private_key_file=None, host_key_fingerprint=None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         host: String,
         username: String,
@@ -59,6 +61,7 @@ impl PyDevice {
         timeout: u64,
         keepalive_interval: Option<u64>,
         ssh_private_key_file: Option<String>,
+        host_key_fingerprint: Option<String>,
     ) -> PyResult<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -75,6 +78,7 @@ impl PyDevice {
             timeout,
             keepalive_interval,
             ssh_private_key_file,
+            host_key_fingerprint,
         })
     }
 
@@ -106,6 +110,10 @@ impl PyDevice {
                     }
                     if let Some(ref key_path) = self.ssh_private_key_file {
                         builder = builder.key_file(key_path);
+                    }
+                    if let Some(ref fingerprint) = self.host_key_fingerprint {
+                        builder = builder
+                            .host_key_verification(HostKeyVerification::Fingerprint(fingerprint.clone()));
                     }
 
                     builder.open().await
