@@ -74,52 +74,69 @@ impl<'a> ConfigManager<'a> {
     /// Load configuration into the candidate datastore.
     ///
     /// On chassis-clustered devices, automatically opens a private
-    /// configuration database if one is not already open.
+    /// configuration database if one is not already open. If the load
+    /// fails, a database opened by this call is best-effort closed before
+    /// returning the error. A database opened explicitly by the caller
+    /// before this call is left alone.
     pub async fn load(&mut self, payload: ConfigPayload) -> Result<String, RustEzError> {
-        self.auto_open_if_needed().await?;
+        let opened_here = self.auto_open_if_needed().await?;
 
         let (action, format, config) = payload_to_load_args(&payload);
         let timeout = self.timeout;
-        timed(
+        let result = timed(
             timeout,
             self.client.load_configuration(action, format, &config),
         )
-        .await
+        .await;
+        if result.is_err() {
+            self.close_auto_opened_on_error(opened_here).await;
+        }
+        result
     }
 
     /// Load configuration with an explicit action (merge, replace, override, update).
     ///
     /// Use this when you need an action other than the default (merge for
-    /// text/xml, set for set commands).
+    /// text/xml, set for set commands). See [`load()`](Self::load) for the
+    /// auto-open and error-cleanup behavior.
     pub async fn load_with_action(
         &mut self,
         payload: ConfigPayload,
         action: LoadAction,
     ) -> Result<String, RustEzError> {
-        self.auto_open_if_needed().await?;
+        let opened_here = self.auto_open_if_needed().await?;
 
         let (_default_action, format, config) = payload_to_load_args(&payload);
         let timeout = self.timeout;
-        timed(
+        let result = timed(
             timeout,
             self.client.load_configuration(action, format, &config),
         )
-        .await
+        .await;
+        if result.is_err() {
+            self.close_auto_opened_on_error(opened_here).await;
+        }
+        result
     }
 
     /// Load configuration and return any warnings from the device.
     ///
     /// Warnings are non-fatal messages (severity="warning") that the device
-    /// returns alongside a successful load.
+    /// returns alongside a successful load. See [`load()`](Self::load) for
+    /// the auto-open and error-cleanup behavior.
     pub async fn load_with_warnings(
         &mut self,
         payload: ConfigPayload,
     ) -> Result<(String, Vec<RpcErrorInfo>), RustEzError> {
-        self.auto_open_if_needed().await?;
+        let opened_here = self.auto_open_if_needed().await?;
 
         let xml = build_load_xml(&payload);
         let timeout = self.timeout;
-        timed(timeout, self.client.rpc_with_warnings(&xml)).await
+        let result = timed(timeout, self.client.rpc_with_warnings(&xml)).await;
+        if result.is_err() {
+            self.close_auto_opened_on_error(opened_here).await;
+        }
+        result
     }
 
     /// Show the candidate diff (uncommitted changes).
@@ -203,12 +220,33 @@ impl<'a> ConfigManager<'a> {
     }
 
     /// Auto-open a private configuration database if the device requires it.
-    async fn auto_open_if_needed(&mut self) -> Result<(), RustEzError> {
+    ///
+    /// Returns `true` when this call opened the database (and is therefore
+    /// responsible for cleanup on a subsequent error), `false` when it was
+    /// already open or the device does not require an open database.
+    async fn auto_open_if_needed(&mut self) -> Result<bool, RustEzError> {
         if self.client.requires_open_configuration() && !*self.config_db_open {
             self.open_configuration(OpenConfigurationMode::Private)
                 .await?;
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
+    }
+
+    /// Best-effort close a configuration database that this call opened.
+    ///
+    /// No-op when `opened_here` is `false` — sessions opened by the caller
+    /// before the failing load are preserved. Errors from `close_configuration`
+    /// are swallowed so the original load error reaches the caller; the
+    /// `config_db_open` flag is reset only when close actually succeeds.
+    async fn close_auto_opened_on_error(&mut self, opened_here: bool) {
+        if !opened_here {
+            return;
+        }
+        let timeout = self.timeout;
+        if timed(timeout, self.client.close_configuration()).await.is_ok() {
+            *self.config_db_open = false;
+        }
     }
 }
 

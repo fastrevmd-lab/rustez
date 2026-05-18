@@ -237,3 +237,48 @@ async fn test_event_subscription() {
     changer.close().await.expect("close changer failed");
     let _ = tokio::time::timeout(Duration::from_secs(5), listener.close()).await;
 }
+
+/// IT-SEC-003: A failing load() on a clustered device closes the
+/// auto-opened private configuration database before returning the error.
+///
+/// On non-clustered devices (where `requires_open_configuration()` is
+/// false) this test still exercises the error path but the assertion
+/// about `is_config_db_open()` is trivially satisfied — the flag is
+/// expected to remain `false` throughout. The interesting case is a
+/// clustered SRX: prior to RZ-SEC-003 the flag would be `true` after a
+/// failed load, leaving the session in a stuck state.
+#[tokio::test]
+#[ignore]
+#[serial]
+async fn test_failed_load_closes_auto_opened_config_db() {
+    let mut dev = vsrx_builder()
+        .rpc_timeout(Duration::from_secs(60))
+        .open()
+        .await
+        .expect("failed to connect");
+
+    assert!(
+        !dev.is_config_db_open(),
+        "config db should start closed before any load"
+    );
+
+    let mut cfg = dev.config().expect("config manager failed");
+    cfg.lock().await.expect("lock failed");
+
+    // Deliberately malformed Junos set syntax — the device should reject it.
+    let bad_payload = ConfigPayload::Set("nonsense_command_that_will_fail".to_string());
+    let result = cfg.load(bad_payload).await;
+    assert!(result.is_err(), "malformed load should fail");
+
+    // Whether or not this device required an auto-open, the config db
+    // must NOT be left open after the failing load returns.
+    assert!(
+        !dev.is_config_db_open(),
+        "auto-opened config db must be closed when load fails"
+    );
+
+    // Session should still be usable for cleanup.
+    let mut cfg = dev.config().expect("config manager re-acquire failed");
+    cfg.unlock().await.expect("unlock after failed load failed");
+    dev.close().await.expect("close failed");
+}
