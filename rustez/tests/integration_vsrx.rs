@@ -10,17 +10,24 @@
 use std::env;
 use std::time::Duration;
 
-use rustez::{ConfigPayload, Device, DeviceBuilder};
+use rustez::{ConfigPayload, Device, DeviceBuilder, HostKeyVerification};
 use serial_test::serial;
 
 /// Build a DeviceBuilder from environment variables.
 ///
 /// Supports both key-based auth (RUSTEZ_VSRX_KEY) and password auth (RUSTEZ_VSRX_PASS).
+///
+/// Defaults to `HostKeyVerification::AcceptAll` because these integration
+/// tests target a known-good lab vSRX where pinning a per-device
+/// fingerprint would add noise without adding signal. Production callers
+/// should pin a fingerprint instead — see `Device::host_key_verification`.
 fn vsrx_builder() -> DeviceBuilder {
     let host = env::var("RUSTEZ_VSRX_HOST").expect("RUSTEZ_VSRX_HOST not set");
     let user = env::var("RUSTEZ_VSRX_USER").unwrap_or_else(|_| "admin".to_string());
 
-    let mut builder = Device::connect(&host).username(&user);
+    let mut builder = Device::connect(&host)
+        .username(&user)
+        .host_key_verification(HostKeyVerification::AcceptAll);
 
     if let Ok(key_path) = env::var("RUSTEZ_VSRX_KEY") {
         // Expand ~ to home directory

@@ -5,6 +5,17 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-05-18
+
+### Changed
+
+- **BREAKING:** Bumped `rustnetconf` dependency to `0.11`. The underlying SSH host-key verification default changed from `AcceptAll` to `RejectAll` (fail-closed). Callers that previously connected without setting a policy will now get a host-key rejection error at connect time.
+  - **Migration:** Pin a fingerprint with `DeviceBuilder::host_key_verification(HostKeyVerification::Fingerprint(...))` (recommended), or explicitly opt back into the old behavior with `DeviceBuilder::host_key_verification(HostKeyVerification::AcceptAll)` for lab/test use.
+  - **Python:** Pass `host_key_fingerprint="..."` to `Device(...)` to pin, or use `HostKeyVerification` directly via the native bindings.
+- Integration test harness (`vsrx_builder` in `tests/integration_vsrx.rs`) updated to explicitly request `HostKeyVerification::AcceptAll` since the lab vSRX devices are known-good.
+
+[0.11.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.10.1...v0.11.0
+
 ## [0.10.0] — 2026-05-06
 
 ### Fixed
