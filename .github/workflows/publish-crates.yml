@@ -1,0 +1,43 @@
+name: Publish rustez to crates.io
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: cargo publish (rustez)
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Sanity check: the tag should match the manifest version.
+      # publish-pypi already runs from the tag commit so this catches
+      # an out-of-sync rustez/Cargo.toml before the upload attempt.
+      - name: Verify tag matches manifest version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(grep -m1 '^version' rustez/Cargo.toml | cut -d'"' -f2)
+          echo "tag=$tag manifest=$manifest"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match rustez/Cargo.toml version $manifest"
+            exit 1
+          fi
+
+      # Dry-run first: catches packaging errors (missing files, bad
+      # metadata, unresolved deps) before we burn a version number.
+      - name: cargo publish --dry-run
+        run: cargo publish -p rustez --dry-run
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p rustez
