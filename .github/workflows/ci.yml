@@ -37,5 +37,16 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
+      # Ignored advisories — see .cargo/audit-ignored.md for full
+      # reachability analysis, mitigations, and review dates. Keep the
+      # --ignore flags below in sync with that file.
+      #
+      # RUSTSEC-2023-0071 — rsa 0.10.0-rc.16 Marvin timing side-channel.
+      #   Reached via russh's SSH host-key/RSA-auth path; no upstream patch.
+      #   Review by 2026-11-18.
+      - name: Surface ignored advisories
+        run: |
+          echo "::warning::cargo audit ignores RUSTSEC-2023-0071 — see .cargo/audit-ignored.md"
+
       - name: cargo audit
         run: cargo audit --ignore RUSTSEC-2023-0071
