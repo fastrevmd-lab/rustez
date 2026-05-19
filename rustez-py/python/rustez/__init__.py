@@ -221,6 +221,7 @@ class Device:
         ssh_private_key_file: str | None = None,
         keepalive_interval: int | None = None,
         host_key_fingerprint: str | None = None,
+        host_key_known_hosts: str | None = None,
         **kwargs,
     ) -> None:
         """Initialize a device connection (does not connect yet).
@@ -235,11 +236,19 @@ class Device:
             keepalive_interval: Seconds between idle session probes (default: disabled).
             host_key_fingerprint: SHA-256 fingerprint of the device's SSH host
                 key to pin against MITM. Format: ``"SHA256:<base64>"`` or just
-                ``"<base64>"``. When omitted, the underlying transport accepts
-                any host key (logs a warning) — **insecure** for production.
-                Obtain with ``ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub``
-                on the device.
+                ``"<base64>"``. Obtain with
+                ``ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`` on the device.
+                Mutually exclusive with ``host_key_known_hosts``.
+            host_key_known_hosts: Path to an OpenSSH ``known_hosts`` file. The
+                device's host key must match an entry for the connection target
+                or the connect will fail. Mutually exclusive with
+                ``host_key_fingerprint``.
             **kwargs: Ignored (for PyEZ compat).
+
+        When neither ``host_key_fingerprint`` nor ``host_key_known_hosts`` is
+        provided, the underlying transport defaults to **rejecting all host
+        keys** (fail-closed). One of the two must be set for connections to
+        succeed in production use.
         """
         self._native = _PyDevice(
             host=host,
@@ -250,6 +259,7 @@ class Device:
             keepalive_interval=keepalive_interval,
             ssh_private_key_file=ssh_private_key_file,
             host_key_fingerprint=host_key_fingerprint,
+            host_key_known_hosts=host_key_known_hosts,
         )
         self._facts: _FactsDict = _FactsDict()
         self._rpc = _RpcProxy(self._native)

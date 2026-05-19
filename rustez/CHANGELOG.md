@@ -5,6 +5,33 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-05-18
+
+### Added
+
+- **`HostKeyVerification::KnownHosts(PathBuf)` re-exported** — surfaces the new
+  variant from `rustnetconf 0.12`. Callers can now point at an OpenSSH
+  `known_hosts` file instead of pinning a single fingerprint.
+- **Python `Device(host_key_known_hosts="...")`** — new constructor keyword
+  argument on `rustez.Device` mapping to `HostKeyVerification::KnownHosts`.
+  Mutually exclusive with `host_key_fingerprint` (raises `ValueError`).
+
+### Changed
+
+- Bumped `rustnetconf` dependency to `0.12`. Additive only for rustez — no
+  source-level breakage. The 0.12 release added `KnownHosts(PathBuf)` to
+  `HostKeyVerification` and a `host_key_verification` field on the pool
+  `DeviceConfig` struct (rustez does not use the pool API).
+
+### Fixed
+
+- **Stale doc comments** on `DeviceBuilder::host_key_verification` (Rust) and
+  `Device.__init__` (Python) — both incorrectly claimed the default policy
+  was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
+  (fail-closed); the docs now reflect this.
+
+[0.12.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.11.0...v0.12.0
+
 ## [0.11.0] — 2026-05-18
 
 ### Changed

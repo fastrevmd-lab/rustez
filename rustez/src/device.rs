@@ -430,9 +430,11 @@ impl DeviceBuilder {
     /// Set the SSH host-key verification policy for the final target.
     ///
     /// When unset, rustnetconf's default applies — currently
-    /// [`HostKeyVerification::AcceptAll`], which logs a warning and is
-    /// **insecure** (vulnerable to MITM). Production callers should pin a
-    /// fingerprint with [`HostKeyVerification::Fingerprint`].
+    /// [`HostKeyVerification::RejectAll`] (fail-closed), so connections will
+    /// be refused until a policy is chosen. Production callers should pin a
+    /// fingerprint with [`HostKeyVerification::Fingerprint`] or supply a
+    /// `known_hosts` file with [`HostKeyVerification::KnownHosts`].
+    /// Lab/test code may opt in to [`HostKeyVerification::AcceptAll`].
     ///
     /// Obtain a device fingerprint with:
     /// `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` (on the device).

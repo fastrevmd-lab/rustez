@@ -7,10 +7,11 @@
 //! All blocking network I/O releases the Python GIL so other threads
 //! can run concurrently.
 
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
 use rustez::config::ConfigPayload;
@@ -45,13 +46,14 @@ struct PyDevice {
     keepalive_interval: Option<u64>,
     ssh_private_key_file: Option<String>,
     host_key_fingerprint: Option<String>,
+    host_key_known_hosts: Option<String>,
 }
 
 #[pymethods]
 impl PyDevice {
     /// Create a new PyDevice (does NOT connect yet — call .open()).
     #[new]
-    #[pyo3(signature = (host, username, password, port=830, timeout=30, keepalive_interval=None, ssh_private_key_file=None, host_key_fingerprint=None))]
+    #[pyo3(signature = (host, username, password, port=830, timeout=30, keepalive_interval=None, ssh_private_key_file=None, host_key_fingerprint=None, host_key_known_hosts=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         host: String,
@@ -62,7 +64,14 @@ impl PyDevice {
         keepalive_interval: Option<u64>,
         ssh_private_key_file: Option<String>,
         host_key_fingerprint: Option<String>,
+        host_key_known_hosts: Option<String>,
     ) -> PyResult<Self> {
+        if host_key_fingerprint.is_some() && host_key_known_hosts.is_some() {
+            return Err(PyValueError::new_err(
+                "host_key_fingerprint and host_key_known_hosts are mutually exclusive",
+            ));
+        }
+
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -79,6 +88,7 @@ impl PyDevice {
             keepalive_interval,
             ssh_private_key_file,
             host_key_fingerprint,
+            host_key_known_hosts,
         })
     }
 
@@ -114,6 +124,10 @@ impl PyDevice {
                     if let Some(ref fingerprint) = self.host_key_fingerprint {
                         builder = builder
                             .host_key_verification(HostKeyVerification::Fingerprint(fingerprint.clone()));
+                    } else if let Some(ref path) = self.host_key_known_hosts {
+                        builder = builder.host_key_verification(HostKeyVerification::KnownHosts(
+                            PathBuf::from(path),
+                        ));
                     }
 
                     builder.open().await

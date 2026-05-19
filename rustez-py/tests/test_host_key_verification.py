@@ -52,3 +52,60 @@ def test_device_wrapper_forwards_host_key_fingerprint():
             passwd="secret",
             host_key_fingerprint=12345,
         )
+
+
+def test_native_pydevice_accepts_host_key_known_hosts():
+    """The PyO3 PyDevice constructor accepts host_key_known_hosts kwarg."""
+    dev = PyDevice(
+        host="10.0.0.1",
+        username="admin",
+        password="secret",
+        host_key_known_hosts="/home/user/.ssh/known_hosts",
+    )
+    assert dev is not None
+
+
+def test_native_pydevice_host_key_known_hosts_rejects_non_string():
+    """PyO3 surfaces a TypeError when known_hosts path is not a string."""
+    with pytest.raises(TypeError):
+        PyDevice(
+            host="10.0.0.1",
+            username="admin",
+            password="secret",
+            host_key_known_hosts=42,
+        )
+
+
+def test_native_pydevice_rejects_both_host_key_options():
+    """Setting both fingerprint and known_hosts raises ValueError."""
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        PyDevice(
+            host="10.0.0.1",
+            username="admin",
+            password="secret",
+            host_key_fingerprint="SHA256:abc123",
+            host_key_known_hosts="/home/user/.ssh/known_hosts",
+        )
+
+
+def test_device_wrapper_forwards_host_key_known_hosts():
+    """Device.__init__ forwards host_key_known_hosts to the native binding."""
+    with pytest.raises(TypeError):
+        Device(
+            host="10.0.0.1",
+            user="admin",
+            passwd="secret",
+            host_key_known_hosts=42,
+        )
+
+
+def test_device_wrapper_rejects_both_host_key_options():
+    """Device.__init__ propagates the mutual-exclusion ValueError."""
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        Device(
+            host="10.0.0.1",
+            user="admin",
+            passwd="secret",
+            host_key_fingerprint="SHA256:abc123",
+            host_key_known_hosts="/home/user/.ssh/known_hosts",
+        )
