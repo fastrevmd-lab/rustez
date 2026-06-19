@@ -145,8 +145,8 @@ pub struct ConfigCommitArgs {
     /// Arm a confirmed commit that auto-rolls-back after N minutes unless confirmed.
     #[arg(long)]
     pub confirm_minutes: Option<u32>,
-    /// Commit log comment.
-    #[arg(long)]
+    /// Commit log comment. Not supported together with --confirm-minutes.
+    #[arg(long, conflicts_with = "confirm_minutes")]
     pub comment: Option<String>,
 }
 
@@ -265,6 +265,18 @@ mod tests {
             },
             _ => panic!("expected config"),
         }
+    }
+
+    #[test]
+    fn confirm_minutes_and_comment_are_mutually_exclusive() {
+        let res = Cli::try_parse_from([
+            "rustez", "config", "commit", "10.0.0.1", "-u", "admin", "-f", "c.set",
+            "--confirm-minutes", "5", "--comment", "change-123",
+        ]);
+        assert!(
+            res.is_err(),
+            "--comment with --confirm-minutes should conflict (comment would be silently dropped)"
+        );
     }
 
     #[test]

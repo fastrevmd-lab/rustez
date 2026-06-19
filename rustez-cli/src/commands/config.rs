@@ -156,6 +156,9 @@ pub async fn confirm(args: &ConfigConfirmArgs) -> Result<CommandData, CliError> 
 }
 
 async fn confirm_inner(dev: &mut Device) -> Result<CommandData, CliError> {
+    // A bare `<commit-configuration/>` against an empty candidate confirms a
+    // pending `commit confirmed` from a prior session, cancelling its
+    // auto-rollback timer. We intentionally do not lock/load here.
     let mut cfg = dev
         .config()
         .map_err(|e| CliError::from_rustez(&e, Phase::Commit))?;
