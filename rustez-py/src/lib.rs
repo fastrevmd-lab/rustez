@@ -103,7 +103,7 @@ impl PyDevice {
             guard.clone()
         };
 
-        let dev = py.allow_threads(|| {
+        let dev = py.detach(|| {
             self.runtime
                 .block_on(async {
                     let mut builder = Device::connect(&self.host)
@@ -154,7 +154,7 @@ impl PyDevice {
 
     /// Reconnect to the device using the original connection parameters.
     fn reconnect(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -165,7 +165,7 @@ impl PyDevice {
 
     /// Close the NETCONF connection.
     fn close(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             if let Some(ref mut dev) = *guard {
                 self.runtime.block_on(dev.close()).map_err(to_py_err)?;
@@ -183,7 +183,7 @@ impl PyDevice {
 
     /// Return facts as a Python dict.
     fn facts(&self, py: Python<'_>) -> PyResult<Vec<(String, String)>> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -203,7 +203,7 @@ impl PyDevice {
     /// Execute a CLI command. Returns text output.
     fn cli(&self, py: Python<'_>, command: &str) -> PyResult<String> {
         let command = command.to_string();
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -223,7 +223,7 @@ impl PyDevice {
         args: Vec<(String, String)>,
     ) -> PyResult<String> {
         let rpc_name = rpc_name.to_string();
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -242,7 +242,7 @@ impl PyDevice {
     fn rpc_cli(&self, py: Python<'_>, command: &str, format: &str) -> PyResult<String> {
         let command = command.to_string();
         let format = format.to_string();
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -257,7 +257,7 @@ impl PyDevice {
     /// Send raw XML RPC. Returns raw XML string.
     fn rpc_xml(&self, py: Python<'_>, xml: &str) -> PyResult<String> {
         let xml = xml.to_string();
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -276,7 +276,7 @@ impl PyDevice {
         xml: &str,
     ) -> PyResult<(String, Vec<(String, String)>)> {
         let xml = xml.to_string();
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -315,7 +315,7 @@ impl PyDevice {
                 )))
             }
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -328,7 +328,7 @@ impl PyDevice {
 
     /// Close a previously opened configuration database.
     fn config_close_configuration(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -341,7 +341,7 @@ impl PyDevice {
 
     /// Lock the candidate config.
     fn config_lock(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -353,7 +353,7 @@ impl PyDevice {
 
     /// Unlock the candidate config.
     fn config_unlock(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -398,7 +398,7 @@ impl PyDevice {
             }
         };
 
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -420,7 +420,7 @@ impl PyDevice {
     #[pyo3(signature = (rb_id=None))]
     fn config_diff(&self, py: Python<'_>, rb_id: Option<u32>) -> PyResult<String> {
         let rb_id = rb_id.unwrap_or(0);
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -437,7 +437,7 @@ impl PyDevice {
     /// Commit candidate config, optionally with a log comment.
     #[pyo3(signature = (comment=None))]
     fn config_commit(&self, py: Python<'_>, comment: Option<&str>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -455,7 +455,7 @@ impl PyDevice {
 
     /// Commit confirmed with rollback timer in seconds.
     fn config_commit_confirmed(&self, py: Python<'_>, seconds: u32) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -469,7 +469,7 @@ impl PyDevice {
 
     /// Rollback to configuration N (0 = running).
     fn config_rollback(&self, py: Python<'_>, id: u32) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
@@ -481,7 +481,7 @@ impl PyDevice {
 
     /// Validate candidate config without committing.
     fn config_commit_check(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(|| {
+        py.detach(|| {
             let mut guard = lock_mutex(&self.device)?;
             let dev = guard
                 .as_mut()
