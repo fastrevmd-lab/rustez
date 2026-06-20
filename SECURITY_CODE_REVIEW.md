@@ -30,7 +30,14 @@ Manual source review plus automated checks:
 
 ## Executive summary
 
-The codebase is small, readable, and has useful defensive controls around XML name validation and XML escaping for most generated RPC payloads. The main security concern is SSH trust: rustEZ does not expose target-device host-key verification, so users inherit rustnetconf's insecure `AcceptAll` default for the final NETCONF SSH target. CI also explicitly ignores a known `rsa` cryptographic advisory, which should be treated as a tracked risk rather than a permanently suppressed gate.
+> **Update 2026-06-19:** RZ-SEC-001 has been **resolved**. `DeviceBuilder` now exposes
+> `host_key_verification(...)`, and the dependency bump to `rustnetconf 0.11+` changed the
+> underlying default to `HostKeyVerification::RejectAll` (fail-closed). An unconfigured rustEZ
+> connection now refuses unknown host keys rather than accepting them. RZ-SEC-002 remains a
+> tracked, accepted risk (no upstream fix available). The original findings below are retained
+> as a historical record of the 0.10.1 → 0.11.0 audit cycle.
+
+The codebase is small, readable, and has useful defensive controls around XML name validation and XML escaping for most generated RPC payloads. At the time of this audit the main security concern was SSH trust: rustEZ did not expose target-device host-key verification, so users inherited rustnetconf's insecure `AcceptAll` default for the final NETCONF SSH target (see the RZ-SEC-001 resolution note above). CI also explicitly ignores a known `rsa` cryptographic advisory, which should be treated as a tracked risk rather than a permanently suppressed gate.
 
 No hardcoded production secrets were found. The core Rust unit tests and clippy checks pass. The Python package dependency scan found no known vulnerabilities.
 
@@ -39,7 +46,8 @@ No hardcoded production secrets were found. The core Rust unit tests and clippy 
 ### RZ-SEC-001: Target device SSH host-key verification is not exposed, so users inherit insecure AcceptAll behavior
 
 Severity: High
-Status: Confirmed by source review
+Status: **Resolved (2026-06-19)** — `DeviceBuilder::host_key_verification(...)` added and the
+`rustnetconf 0.11+` bump made the default `RejectAll` (fail-closed). Was: Confirmed by source review.
 
 Affected files:
 

@@ -596,7 +596,7 @@ mod tests {
     #[test]
     fn test_host_key_verification_default_is_none() {
         // Builders that do not call host_key_verification() leave the field unset,
-        // preserving rustnetconf's default behavior (AcceptAll) for backward compatibility.
+        // deferring to rustnetconf's default (RejectAll, fail-closed) at connect time.
         let builder = Device::connect("10.0.0.1");
         assert!(builder.host_key_verification.is_none());
     }
