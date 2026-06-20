@@ -94,6 +94,47 @@ rustez rpc 10.0.0.1 "show interfaces terse" -u admin
 rustez config apply 10.0.0.1 -f config.set -u admin
 ```
 
+### Machine-readable output (`--json`)
+
+Every command accepts `--json`, emitting a stable envelope on stdout (success)
+or stderr (failure). The shape is identical across commands, so a bridge can
+parse one structure and branch on `ok` / `error.kind`:
+
+```bash
+rustez facts 10.0.0.1 -u admin --json
+```
+
+```json
+{
+  "ok": true,
+  "command": "facts",
+  "host": "10.0.0.1",
+  "data": { "hostname": "vsrx-1", "model": "vSRX", "version": "24.4R1", "...": "..." }
+}
+```
+
+On failure: `{"ok": false, "command": ..., "host": ..., "error": {"kind": "...", "message": "..."}}`.
+Each error `kind` maps to a distinct exit code: `usage`=1, `connect`=2, `auth`=3,
+`rpc`=4, `load`=5, `commit`=6, `rollback`=7, `internal`=8 (success is 0).
+
+### Credentials
+
+Password resolution precedence: `-p/--password` (warns — visible in the process
+list) → `$RUSTEZ_PASSWORD` → `--key-file <PATH>` (key-based auth) → interactive
+no-echo prompt (when stdin is a TTY). Prefer `$RUSTEZ_PASSWORD` or `--key-file`
+over `-p`.
+
+### Host-key verification
+
+Verification is **fail-closed**: with no host-key flag, an unknown host key is
+rejected and the connection fails. Choose one (mutually exclusive):
+
+```bash
+rustez facts 10.0.0.1 -u admin --host-key-fingerprint SHA256:abc123...   # pin a fingerprint
+rustez facts 10.0.0.1 -u admin --known-hosts ~/.ssh/known_hosts          # verify against a known_hosts file
+rustez facts 10.0.0.1 -u admin --accept-any-host-key                     # trust on first use (lab only)
+```
+
 ## Quick Start (Python)
 
 ```python
