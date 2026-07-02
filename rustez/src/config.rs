@@ -167,8 +167,7 @@ impl<'a> ConfigManager<'a> {
     /// ```
     pub async fn diff_against(&mut self, rb_id: u32) -> Result<Option<String>, RustEzError> {
         let timeout = self.timeout;
-        let response: String =
-            timed(timeout, self.client.get_configuration_compare(rb_id)).await?;
+        let response: String = timed(timeout, self.client.get_configuration_compare(rb_id)).await?;
 
         let diff = parse_configuration_output(&response);
         if diff.is_empty() {
@@ -268,7 +267,10 @@ impl<'a> ConfigManager<'a> {
             return;
         }
         let timeout = self.timeout;
-        if timed(timeout, self.client.close_configuration()).await.is_ok() {
+        if timed(timeout, self.client.close_configuration())
+            .await
+            .is_ok()
+        {
             *self.config_db_open = false;
         }
     }

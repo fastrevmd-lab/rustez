@@ -5,6 +5,34 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] — 2026-07-02
+
+### Security
+
+- **Upgraded `quick-xml` `0.37` → `0.41`** — closes **RUSTSEC-2026-0194**
+  (quadratic duplicate-attribute-name scan) and **RUSTSEC-2026-0195**
+  (unbounded namespace-declaration allocation / memory-exhaustion DoS). Both
+  are reachable on the fact-parsing path, which decodes device-supplied XML.
+
+### Fixed
+
+- **Fact parsers no longer truncate values containing XML entities.** Since
+  quick-xml 0.38, entity references (`&amp;`, `&lt;`, `&#38;`, …) stream as
+  separate `Event::GeneralRef` events instead of arriving inside `Text`. The
+  four fact-parser reader loops (`facts/mod.rs`, `chassis.rs`, `software.rs`,
+  `routing_engine.rs`) now accumulate `Text` + resolve `GeneralRef` and flush
+  on the closing tag, so a Junos value such as a description or config
+  fragment containing `&`/`<`/`>` round-trips correctly. Added entity
+  round-trip regression tests. `unwrap_multi_re` keeps entities verbatim in
+  reconstructed per-RE XML (and now escapes reconstructed attribute-value
+  quotes) so downstream re-parsing stays well-formed.
+
+### Changed
+
+- Bumped `rustnetconf` dependency to `0.12.3` (pulls its own quick-xml 0.41
+  fix for the same advisories).
+- **MSRV raised to 1.79** (required by quick-xml ≥ 0.40).
+
 ## [0.12.0] — 2026-05-18
 
 ### Added
@@ -30,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.12.1]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.11.0...v0.12.0
 
 ## [0.11.0] — 2026-05-18

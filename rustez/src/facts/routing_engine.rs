@@ -30,6 +30,7 @@ pub(crate) fn parse_route_engines(xml: &str) -> Vec<RouteEngine> {
     let mut current_engine: Option<RouteEngine> = None;
     let mut current_element = String::new();
     let mut in_route_engine = false;
+    let mut text_buf = String::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -54,26 +55,19 @@ pub(crate) fn parse_route_engines(xml: &str) -> Vec<RouteEngine> {
                     current_engine = Some(engine);
                 } else if in_route_engine {
                     current_element = name;
+                    // Reset per-element buffer so only this element's own text
+                    // (not inter-element whitespace) is captured.
+                    text_buf.clear();
                 }
             }
+            // Accumulate across Text/GeneralRef; since quick-xml 0.38 entity
+            // refs arrive as separate GeneralRef events. Flush on closing tag.
             Ok(Event::Text(ref text)) if in_route_engine => {
-                let value = text.unescape().unwrap_or_default().trim().to_string();
-                if let Some(ref mut engine) = current_engine {
-                    match current_element.as_str() {
-                        "slot" => {
-                            if let Ok(slot) = value.parse::<u32>() {
-                                engine.slot = Some(slot);
-                            }
-                        }
-                        "status" => engine.status = value,
-                        "model" => engine.model = Some(value),
-                        "mastership-state" => engine.mastership_state = Some(value),
-                        "up-time" => engine.uptime = Some(value),
-                        "memory-dram-size" | "memory-installed-size" => {
-                            engine.memory_total = Some(value);
-                        }
-                        _ => {}
-                    }
+                text_buf.push_str(&text.decode().unwrap_or_default());
+            }
+            Ok(Event::GeneralRef(ref entity)) if in_route_engine => {
+                if let Some(resolved) = super::xml_entity::resolve_entity_ref(entity) {
+                    text_buf.push_str(&resolved);
                 }
             }
             Ok(Event::End(ref tag)) => {
@@ -85,6 +79,24 @@ pub(crate) fn parse_route_engines(xml: &str) -> Vec<RouteEngine> {
                         engines.push(engine);
                     }
                 } else if in_route_engine {
+                    let value = std::mem::take(&mut text_buf).trim().to_string();
+                    if let Some(ref mut engine) = current_engine {
+                        match current_element.as_str() {
+                            "slot" => {
+                                if let Ok(slot) = value.parse::<u32>() {
+                                    engine.slot = Some(slot);
+                                }
+                            }
+                            "status" => engine.status = value,
+                            "model" => engine.model = Some(value),
+                            "mastership-state" => engine.mastership_state = Some(value),
+                            "up-time" => engine.uptime = Some(value),
+                            "memory-dram-size" | "memory-installed-size" => {
+                                engine.memory_total = Some(value);
+                            }
+                            _ => {}
+                        }
+                    }
                     current_element.clear();
                 }
             }
@@ -163,5 +175,22 @@ mod tests {
         assert_eq!(engines[1].mastership_state.as_deref(), Some("backup"));
 
         assert_eq!(find_master_re(&engines), Some(0));
+    }
+
+    #[test]
+    fn test_route_engine_field_with_entities() {
+        // A field value containing entities must round-trip through the
+        // Text/GeneralRef split introduced in quick-xml 0.38.
+        let xml = r#"<route-engine-information>
+  <route-engine>
+    <slot>0</slot>
+    <status>OK</status>
+    <model>RE&amp;A&lt;B</model>
+  </route-engine>
+</route-engine-information>"#;
+
+        let engines = parse_route_engines(xml);
+        assert_eq!(engines.len(), 1);
+        assert_eq!(engines[0].model.as_deref(), Some("RE&A<B"));
     }
 }

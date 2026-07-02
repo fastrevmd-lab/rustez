@@ -24,6 +24,7 @@ pub(crate) fn parse_software_info(xml: &str) -> SoftwareInfo {
     let mut current_element = String::new();
     let mut in_package_comment = false;
     let mut in_package_info = false;
+    let mut text_buf = String::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -38,11 +39,28 @@ pub(crate) fn parse_software_info(xml: &str) -> SoftwareInfo {
                     _ => {}
                 }
                 current_element = name;
+                // Reset the per-element text buffer at each Start so only the
+                // element's own character data (not inter-element whitespace)
+                // is captured.
+                text_buf.clear();
             }
+            // Accumulate character data across Text/GeneralRef events. Since
+            // quick-xml 0.38, entity refs (`&amp;`, `&#38;`, …) arrive as
+            // separate GeneralRef events rather than inside Text; the value is
+            // flushed and dispatched on the element's closing tag.
             Ok(Event::Text(ref text)) => {
-                let value = text.unescape().unwrap_or_default().to_string();
-
-                match current_element.as_str() {
+                text_buf.push_str(&text.decode().unwrap_or_default());
+            }
+            Ok(Event::GeneralRef(ref entity)) => {
+                if let Some(resolved) = super::xml_entity::resolve_entity_ref(entity) {
+                    text_buf.push_str(&resolved);
+                }
+            }
+            Ok(Event::End(ref tag)) => {
+                let local = tag.local_name();
+                let name = std::str::from_utf8(local.as_ref()).unwrap_or("");
+                let value = std::mem::take(&mut text_buf);
+                match name {
                     "host-name" => info.hostname = Some(value),
                     "product-model" => info.model = Some(value),
                     "junos-version" => info.version = Some(value),
@@ -55,10 +73,6 @@ pub(crate) fn parse_software_info(xml: &str) -> SoftwareInfo {
                     }
                     _ => {}
                 }
-            }
-            Ok(Event::End(ref tag)) => {
-                let local = tag.local_name();
-                let name = std::str::from_utf8(local.as_ref()).unwrap_or("");
                 match name {
                     "package-information" => {
                         in_package_info = false;
@@ -147,6 +161,22 @@ mod tests {
         let info = parse_software_info(xml);
         assert_eq!(info.hostname.as_deref(), Some("old-router"));
         assert_eq!(info.version.as_deref(), Some("12.3R12.4"));
+    }
+
+    #[test]
+    fn test_software_info_with_entities() {
+        // A host-name / comment containing XML entities must round-trip:
+        // quick-xml 0.38+ splits entity refs into GeneralRef events, so a
+        // naive decode would truncate the value at the first `&`.
+        let xml = r#"<software-information>
+  <host-name>a&amp;b&lt;c</host-name>
+  <product-model>vSRX</product-model>
+  <junos-version>21.4R3.15</junos-version>
+</software-information>"#;
+
+        let info = parse_software_info(xml);
+        assert_eq!(info.hostname.as_deref(), Some("a&b<c"));
+        assert_eq!(info.model.as_deref(), Some("vSRX"));
     }
 
     #[test]
