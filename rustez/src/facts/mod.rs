@@ -7,6 +7,7 @@ pub mod chassis;
 pub mod personality;
 pub mod routing_engine;
 pub mod software;
+mod xml_entity;
 
 use std::time::Duration;
 
@@ -180,7 +181,12 @@ pub fn unwrap_multi_re(xml: &str) -> Vec<(Option<String>, String)> {
                             item_content
                                 .push_str(std::str::from_utf8(attr.key.as_ref()).unwrap_or(""));
                             item_content.push_str("=\"");
-                            item_content.push_str(&String::from_utf8_lossy(&attr.value));
+                            // attr.value is the raw (already entity-escaped)
+                            // wire value, so only the double-quote delimiter
+                            // needs escaping — never re-escape `&`.
+                            item_content.push_str(
+                                &String::from_utf8_lossy(&attr.value).replace('"', "&quot;"),
+                            );
                             item_content.push('"');
                         }
                         item_content.push('>');
@@ -188,12 +194,29 @@ pub fn unwrap_multi_re(xml: &str) -> Vec<(Option<String>, String)> {
                 }
             }
             Ok(Event::Text(ref text)) => {
-                let value = text.unescape().unwrap_or_default().to_string();
+                // Since quick-xml 0.38, Text events never contain entity refs
+                // (those arrive as GeneralRef), so decode() handles encoding only.
+                let value = text.decode().unwrap_or_default();
                 if in_re_name {
-                    current_re_name = Some(value);
+                    current_re_name
+                        .get_or_insert_with(String::new)
+                        .push_str(&value);
                 } else if capturing {
                     item_content.push_str(&value);
                 }
+            }
+            Ok(Event::GeneralRef(ref entity)) if in_re_name => {
+                // re-name is a leaf value: resolve the entity to its text.
+                if let Some(resolved) = xml_entity::resolve_entity_ref(entity) {
+                    current_re_name
+                        .get_or_insert_with(String::new)
+                        .push_str(&resolved);
+                }
+            }
+            Ok(Event::GeneralRef(ref entity)) if capturing => {
+                // item_content is reconstructed XML re-parsed downstream: keep the
+                // reference escaped verbatim so the fragment stays well-formed.
+                item_content.push_str(&xml_entity::raw_entity_ref(entity));
             }
             Ok(Event::Empty(ref tag)) if capturing => {
                 let local = tag.local_name();
@@ -275,6 +298,31 @@ mod tests {
         assert!(items[0].1.contains("node0"));
         assert_eq!(items[1].0.as_deref(), Some("node1"));
         assert!(items[1].1.contains("node1"));
+    }
+
+    #[test]
+    fn test_unwrap_multi_re_preserves_entities() {
+        // The reconstructed per-RE content is re-parsed downstream, so entity
+        // refs must be kept verbatim (`&amp;`) to stay well-formed; re-name is
+        // a leaf value, so its entity resolves. Regression for quick-xml 0.38+
+        // GeneralRef handling.
+        let xml = r#"<multi-routing-engine-results>
+  <multi-routing-engine-item>
+    <re-name>node&amp;0</re-name>
+    <software-information>
+      <host-name>a&amp;b&lt;c</host-name>
+    </software-information>
+  </multi-routing-engine-item>
+</multi-routing-engine-results>"#;
+
+        let items = unwrap_multi_re(xml);
+        assert_eq!(items.len(), 1);
+        // re-name value is resolved.
+        assert_eq!(items[0].0.as_deref(), Some("node&0"));
+        // Inner XML keeps the entity escaped so it re-parses correctly.
+        assert!(items[0].1.contains("a&amp;b&lt;c"));
+        let info = software::parse_software_info(&items[0].1);
+        assert_eq!(info.hostname.as_deref(), Some("a&b<c"));
     }
 
     #[test]
