@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["fastrevmd-lab"]
 description = "CLI for rustEZ — Junos device automation from the terminal"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/fastrevmd-lab/rustEZ"
+repository = "https://github.com/fastrevmd-lab/rustez"
 
 [dependencies]
 rustez = { path = "../rustez" }

@@ -174,7 +174,7 @@ For unsupported platforms, build from source with [maturin](https://github.com/P
 
 ```bash
 pip install maturin
-git clone https://github.com/fastrevmd-lab/rustEZ.git
+git clone https://github.com/fastrevmd-lab/rustez.git
 cd rustEZ && maturin build --release -m rustez-py/Cargo.toml
 pip install target/wheels/*.whl
 ```
