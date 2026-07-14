@@ -248,7 +248,7 @@ Run `cargo audit` to check for the latest advisories.
 
 ## License
 
-Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
+Licensed under [MIT](LICENSE).
 
 ---
 
