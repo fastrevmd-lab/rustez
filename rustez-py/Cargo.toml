@@ -4,7 +4,7 @@ version = "0.12.1"
 edition = "2021"
 authors = ["fastrevmd-lab"]
 description = "Python bindings for rustEZ — pip install rustez"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 repository = "https://github.com/fastrevmd-lab/rustez"
 
 [lib]

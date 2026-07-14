@@ -7,7 +7,7 @@ name = "rustez"
 version = "0.12.1"
 description = "Python bindings for rustEZ — Junos device automation built on Rust"
 requires-python = ">=3.9"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 dependencies = ["lxml>=4.9.0"]
 
 [tool.maturin]
