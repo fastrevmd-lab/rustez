@@ -5,6 +5,48 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] — 2026-07-19
+
+### Fixed
+
+- **`memory_total` is no longer null on vSRX route engines** (#30). vSRX emits
+  the total as `<memory-system-total>`, which the parser did not recognize, so
+  the value fell through silently. The element is now parsed. Note it arrives
+  as a **bare number** (`16323`) where MX/RE-VMX emits a unit-bearing string
+  (`<memory-dram-size>4096 MB</memory-dram-size>`); see *Changed* below for how
+  this is reconciled.
+- **`master_re` is no longer null on standalone devices** (#30). Platforms such
+  as vSRX omit `<mastership-state>` entirely, which left `find_master_re`
+  returning `None` on every single-RE chassis. A lone RE reporting no mastership
+  state is now treated as the master. A lone RE that *explicitly* reports a
+  non-master state is left alone — the device's own answer wins over the
+  inference — and a multi-RE chassis reporting no state anywhere still yields
+  `None` rather than a guess.
+
+  The `RouteEngine.mastership_state` field itself is **not** synthesized: it
+  stays `None` on these platforms, reflecting what the device actually said.
+  Only the derived `master_re` changes.
+
+### Changed
+
+- **`RouteEngine.memory_total` is normalized to a `"N MB"` string.** Values
+  parsed from `<memory-system-total>` gain an explicit ` MB` suffix so the
+  field has one shape across platforms rather than exposing per-platform
+  formatting to callers. Values that already carry a unit (the existing
+  `memory-dram-size` / `memory-installed-size` path) pass through untouched and
+  are never double-suffixed. **Callers that string-match `memory_total` exactly
+  may need updating**; callers that parse a leading integer are unaffected.
+- Bumped `rustnetconf` dependency to `0.13`. No source changes were required —
+  the release's `DeviceConfig.vendor` `Box` → `Arc` break does not touch any API
+  rustEZ uses.
+
+### Notes
+
+- `RouteEngine.status` of `"Testing"` on vSRX is **genuine device output**, not a
+  parse artifact, and is deliberately passed through unmodified.
+- The vSRX fixture backing these fixes is a verbatim capture from Junos
+  24.4R1.9.
+
 ## [0.12.1] — 2026-07-02
 
 ### Security
@@ -58,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.13.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.11.0...v0.12.0
 
