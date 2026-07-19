@@ -100,9 +100,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
-[0.13.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.12.1...v0.13.0
-[0.12.1]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.12.0...v0.12.1
-[0.12.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.11.0...v0.12.0
+[0.13.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.1...v0.13.0
+[0.12.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.0...v0.12.1
+[0.12.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.11.0...v0.12.0
 
 ## [0.11.0] — 2026-05-18
 
@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Python:** Pass `host_key_fingerprint="..."` to `Device(...)` to pin, or use `HostKeyVerification` directly via the native bindings.
 - Integration test harness (`vsrx_builder` in `tests/integration_vsrx.rs`) updated to explicitly request `HostKeyVerification::AcceptAll` since the lab vSRX devices are known-good.
 
-[0.11.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.10.1...v0.11.0
+[0.11.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.10.0...v0.11.0
 
 ## [0.10.0] — 2026-05-06
 
@@ -140,9 +140,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Synced `rustez-py` version to match core crate.
 - Removed unused `to_netconf_err` function from Python bindings.
 
-[0.10.0]: https://github.com/fastrevmd-lab/rustEZ/compare/v0.9.0...v0.10.0
+[0.10.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.8.4...v0.10.0
 
-## [0.9.0] — 2026-05-04
+## 0.9.0 — 2026-05-04
+
+<!-- Unlinked: v0.9.0 was never tagged in this repository. The 0.9.0 changes
+     are contained in the v0.8.4...v0.10.0 range linked from 0.10.0 above. -->
 
 ### Added
 
@@ -159,4 +162,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bumped `rustnetconf` dependency to `0.9`.
 
-[0.9.0]: https://github.com/fastrevmd-lab/rustEZ/releases/tag/v0.9.0
