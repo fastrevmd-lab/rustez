@@ -9,7 +9,7 @@ repository = "https://github.com/fastrevmd-lab/rustez"
 
 [dependencies]
 rustez = { path = "../rustez" }
-rustnetconf = "0.13"
+rustnetconf = "0.13.1"
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
