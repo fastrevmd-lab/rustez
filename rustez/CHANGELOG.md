@@ -5,6 +5,17 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] — 2026-07-22
+
+### Changed
+
+- Bumped `rustnetconf` dependency to `0.13.1`, which moves the SSH transport
+  from **russh 0.61 → 0.62** and off the prerelease (`-rc`) RustCrypto stack
+  (#34). No `rustez` source changes were required. The `-rc` crate surface in
+  the lockfile shrinks from ~13 crates to only `ssh-key` and its transitive
+  `argon2` / `blake2` — all gated on RustCrypto + russh upstream, not clearable
+  here.
+
 ## [0.13.0] — 2026-07-19
 
 ### Fixed
@@ -100,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.13.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.11.0...v0.12.0
