@@ -1,0 +1,73 @@
+# cargo-deny configuration for the rustEZ workspace.
+#
+# Run locally with:
+#   cargo deny check advisories bans sources licenses
+#
+# CI runs `check bans sources licenses` in .github/workflows/security.yml;
+# advisories are covered separately by the rustsec/audit-check action there
+# and by `cargo audit` in ci.yml.
+
+[graph]
+# Restrict the dependency graph to the platforms this workspace actually
+# ships for. Without this, cargo-deny walks every target in the universe --
+# which drags in UEFI-only crates (see the r-efi note under [licenses]) that
+# are never built, never linked, and never distributed.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    # musllinux wheels are published from .github/workflows/publish-pypi.yml.
+    # Without this, a dependency gated on cfg(target_env = "musl") ships in a
+    # released wheel with its license never checked.
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[licenses]
+# Permissive licenses only. rustEZ itself is MIT; everything it links must be
+# compatible with redistributing an MIT-licensed crate and a PyPI wheel.
+#
+# Deliberately ABSENT: every copyleft license (GPL/LGPL/AGPL/MPL). The only
+# copyleft crate the full graph contains is r-efi (LGPL-2.1-or-later), which
+# reaches us as a UEFI-target-only dependency of getrandom, itself a
+# build-dependency of aws-lc-sys:
+#
+#   r-efi -> getrandom -> jobserver -> cc -> cmake -> aws-lc-sys [build-deps]
+#           -> aws-lc-rs -> russh -> rustnetconf -> rustez
+#
+# It is excluded by the [graph] targets above rather than by an exception,
+# because it genuinely is not part of any artifact we build or publish. If a
+# copyleft crate ever appears in a *linked* position, this check must fail and
+# the dependency must be reconsidered -- do not silence it with an exception.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.93
+
+[bans]
+# Duplicate versions are common and mostly harmless in a tree this deep
+# (the RustCrypto stack carries several); flagging them would be noise.
+multiple-versions = "allow"
+# Catch an unversioned dependency on a *registry* crate, which would let an
+# arbitrary future release in silently. The workspace's own internal
+# `{ path = "../rustez" }` links are exempted -- they resolve to the source in
+# this repo, not to whatever crates.io happens to serve.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
