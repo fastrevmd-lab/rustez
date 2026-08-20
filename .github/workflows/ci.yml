@@ -53,3 +53,28 @@ jobs:
 
       - name: cargo audit
         run: cargo audit --ignore RUSTSEC-2023-0071
+
+  python-bindings:
+    name: Python bindings (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # maturin develop drops the compiled extension into python/rustez/ and
+      # installs a .pth pointing at it, which is what the pytest config's
+      # `pythonpath = ["python"]` expects. Installing a built wheel instead
+      # would shadow it: the source package would win on sys.path and then
+      # fail to find rustez._rustez_native.
+      - name: Build bindings and run pytest
+        working-directory: rustez-py
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --quiet --upgrade pip maturin pytest lxml
+          VIRTUAL_ENV="$PWD/.venv" .venv/bin/maturin develop
+          .venv/bin/pytest -q
