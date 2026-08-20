@@ -5,6 +5,30 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3] — 2026-08-20
+
+### Changed
+
+- **Raised the `rustnetconf` floor to `0.14.3`.** No rustEZ source changes —
+  this release exists only to stop a fresh resolve from picking a version with
+  a bug rustEZ is unusually exposed to.
+
+  rustnetconf 0.14.3 fixes [#61](https://github.com/fastrevmd-lab/rustnetconf/issues/61):
+  it tracked "a commit is in flight" in a session field, set before the send and
+  cleared after it, so a commit future dropped at its `.await` left the flag set
+  for the life of the session. The next *unrelated* transport EOF was then
+  reported as `CommitUnknown` — the flag's purpose inverted, since it exists to
+  stop a genuinely indeterminate commit being mistaken for a clean I/O failure.
+
+  **Why rustEZ specifically:** every `client.rpc()` / `client.commit()` call here
+  is wrapped in `tokio::time::timeout` by convention (see CLAUDE.md), which is
+  exactly the cancellation shape that triggered it. A commit that hit its
+  per-RPC timeout would poison the next failure on that session.
+
+  The previous `"0.14.2"` requirement is a caret, so existing consumers already
+  picked 0.14.3 up on their next `cargo update`. The floor matters for a *fresh*
+  resolve against a new lockfile, which could otherwise still select 0.14.2.
+
 ## [0.14.2] — 2026-08-20
 
 ### Fixed
@@ -265,6 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.14.3]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.1...v0.14.0
