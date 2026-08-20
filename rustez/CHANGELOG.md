@@ -5,6 +5,39 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] — 2026-08-20
+
+### Fixed
+
+- **`load_with_warnings()` no longer hand-marks the candidate** (#40). 0.14.0
+  had to validate the fragment itself and then call `mark_candidate_dirty()`
+  before `rpc_with_warnings()`, because rustnetconf had no atomic
+  candidate-change call that returns warnings. That workaround closed the
+  malformed-XML hole but could not reach rustnetconf's private
+  `keepalive_check()` / `ensure_established()` preflight, so a dead or
+  unreachable session could still leave a **false** dirty mark — and a false
+  mark is the dangerous direction: `close()` acting on it discards another
+  operator's uncommitted work on the shared Junos candidate, which is precisely
+  the bug 0.14.0 set out to fix.
+
+  rustnetconf 0.14.1 adds `rpc_candidate_change_with_warnings()`, which
+  validates, preflights, marks, and only then sends — as one step. The
+  hand-rolled sequence is gone, and `mark_candidate_dirty()` is now called
+  nowhere in rustEZ: the atomic calls own the mark, so nothing can mark for an
+  RPC that never reached the device.
+
+### Changed
+
+- Bumped `rustnetconf` to `0.14.1`. Additive patch upgrade — no behaviour
+  changes and no API removals.
+
+### Notes
+
+- No public rustEZ API changed. `commit_with_comment()`'s inverse limitation is
+  unchanged and still documented under 0.14.0 — it cannot *clear* the flag on
+  the raw `rpc()` path, because there is still no typed commit-with-comment
+  upstream.
+
 ## [0.14.0] — 2026-08-19
 
 ### Fixed
@@ -189,6 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.14.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.1...v0.13.0

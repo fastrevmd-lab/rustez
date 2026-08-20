@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use quick_xml::escape::escape;
 use rustnetconf::rpc::RpcErrorInfo;
-use rustnetconf::{Client, Datastore, LoadAction, LoadFormat, NetconfError, OpenConfigurationMode};
+use rustnetconf::{Client, Datastore, LoadAction, LoadFormat, OpenConfigurationMode};
 
 /// XML namespace prefix used by rustnetconf for NETCONF RPCs.
 const NC: &str = "nc:";
@@ -125,26 +125,26 @@ impl<'a> ConfigManager<'a> {
     /// returns alongside a successful load. See [`load()`](Self::load) for
     /// the auto-open and error-cleanup behavior.
     ///
-    /// This method marks the candidate dirty so that `close_session()` knows
-    /// a discard may be needed.
+    /// Marks the candidate dirty so `close()` cleans up after this session.
+    /// The mark is applied by rustnetconf's atomic candidate-change path, which
+    /// validates and preflights before marking — a fragment that never reaches
+    /// the device leaves no mark behind.
     pub async fn load_with_warnings(
         &mut self,
         payload: ConfigPayload,
     ) -> Result<(String, Vec<RpcErrorInfo>), RustEzError> {
-        // Build and validate the XML BEFORE opening or marking. rpc_with_warnings
-        // internally calls validate_xml_fragment and returns early if malformed,
-        // without sending anything. Validation must precede the mark because a
-        // false mark causes close() to discard a third party's work. This does not
-        // replicate upstream's keepalive/ensure_established preflight — only
-        // rpc_candidate_change does that, and it has no warnings variant.
+        // rpc_candidate_change_with_warnings (rustnetconf 0.14.1) validates the
+        // fragment, runs the send preflight, marks the candidate, and only then
+        // writes — atomically. It replaces a hand-rolled validate-then-mark that
+        // could not reach the private keepalive/ensure_established checks, so a
+        // dead session could still leave a false mark for close() to act on.
+        // Do not reintroduce a separate mark_candidate_dirty() call here: the
+        // whole point is that nothing marks outside this one atomic path.
         let xml = build_load_xml(&payload);
-        rustnetconf::rpc::validate_xml_fragment(&xml).map_err(NetconfError::from)?;
-
         let opened_here = self.auto_open_if_needed().await?;
 
-        self.client.mark_candidate_dirty();
         let timeout = self.timeout;
-        let result = timed(timeout, self.client.rpc_with_warnings(&xml)).await;
+        let result = timed(timeout, self.client.rpc_candidate_change_with_warnings(&xml)).await;
         if result.is_err() {
             self.close_auto_opened_on_error(opened_here).await;
         }
@@ -318,7 +318,9 @@ fn payload_to_load_args(payload: &ConfigPayload) -> (LoadAction, LoadFormat, Str
 
 /// Build the `<load-configuration>` XML for a given payload.
 ///
-/// Used by `load_with_warnings()` which needs raw RPC for warning extraction.
+/// Used by `load_with_warnings()`, which builds the fragment itself because the
+/// typed `load_configuration()` does not return warnings. The fragment goes to
+/// `rpc_candidate_change_with_warnings()`, which validates it before sending.
 /// Uses `nc:` namespace prefix to match rustnetconf's RPC envelope.
 /// `Text` and `Set` payloads are XML-escaped to prevent injection.
 /// `Xml` is passed through raw since it's explicitly raw XML by design.
