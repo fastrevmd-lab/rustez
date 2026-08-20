@@ -49,7 +49,12 @@ Auth: set `RUSTEZ_VSRX_KEY` for key-based or `RUSTEZ_VSRX_PASS` for password aut
   mark makes `close()` discard *another operator's* uncommitted work, which is the bug this tracking exists to prevent. The raw
   `rpc*` calls reject a malformed fragment locally *without sending*, and `ConfigPayload::Xml` passes caller XML through
   unescaped, so hand-marking before one of them is a live way to reintroduce the bug. `mark_candidate_dirty()` exists but rustEZ
-  no longer calls it anywhere — the atomic calls above own the mark, and nothing should mark outside them.
+  no longer calls it anywhere — the typed calls own both **setting and clearing** the mark, and nothing should touch it outside
+  them. A commit on the raw `rpc()` path cannot clear the flag, which is why `commit_with_comment()` uses the typed
+  `client.commit_configuration_with_log()`.
+- **Never escape what rustnetconf already escapes** — `commit_configuration_with_log()` XML-escapes the log text, and
+  `load_configuration()` escapes its Text/Set payload. Escaping again in rustEZ double-escapes it and the value reaches the
+  device mangled. rustEZ only escapes what *it* embeds itself, which is now just `build_load_xml()`'s Text and Set payloads.
 - **Warnings** — `RpcExecutor::call_with_warnings()` / `call_xml_with_warnings()` return `(String, Vec<RpcErrorInfo>)`. `ConfigManager::load_with_warnings()` does the same for config loads.
 
 ## Architecture

@@ -5,6 +5,46 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] — 2026-08-20
+
+### Fixed
+
+- **`commit_with_comment()` no longer leaves a stale candidate-dirty mark**
+  (#41). It sent `<commit-configuration><log>` through the raw `rpc()` path,
+  which cannot *clear* the flag — every clear in rustnetconf is a private
+  side effect of a typed call, and there was no typed commit-with-comment. So a
+  session stayed marked dirty across a commit that genuinely cleaned the
+  candidate, and `close()` discarded afterwards.
+
+  Harmless against that session's own work. Not harmless on the **shared**
+  Junos candidate: anything another operator staged between our commit and our
+  close was destroyed. This was the last of the three routes back to the bug
+  #36 fixed.
+
+  rustnetconf 0.14.2 adds `commit_configuration_with_log()`, which clears the
+  flag on success exactly as `commit_configuration()` does.
+  `commit_with_comment()` now calls it.
+
+  **Behavioural note for consumers pooling sessions:** a session that commits
+  with a comment is now clean, so `touched_candidate()` reports `false` and the
+  session is safe to return to the pool. Callers that worked around this by
+  closing such sessions while still holding the lock can stop doing so.
+
+### Changed
+
+- Bumped `rustnetconf` to `0.14.2`.
+- **`commit_with_comment()` no longer escapes the comment itself.** rustnetconf
+  escapes the log text, so rustEZ escaping first would double-escape it and the
+  comment would reach the device mangled. `build_commit_with_comment_xml()` and
+  its three unit tests are removed; the injection coverage they provided now
+  lives upstream, against the code that actually builds the fragment.
+
+### Notes
+
+- No public rustEZ API changed — `commit_with_comment()` keeps its signature.
+- `mark_candidate_dirty()` is still called nowhere in rustEZ. As of this
+  release the typed calls own both setting *and* clearing the mark.
+
 ## [0.14.1] — 2026-08-20
 
 ### Fixed
@@ -36,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No public rustEZ API changed. `commit_with_comment()`'s inverse limitation is
   unchanged and still documented under 0.14.0 — it cannot *clear* the flag on
   the raw `rpc()` path, because there is still no typed commit-with-comment
-  upstream.
+  upstream. **Resolved in 0.14.2.**
 
 ## [0.14.0] — 2026-08-19
 
@@ -115,6 +155,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   improvement this one method does not yet get. The residual risk is narrow: a
   third party would have to dirty the shared candidate in the window between
   our commit and our close.
+
+  **Resolved in 0.14.2**, once rustnetconf grew a typed commit-with-log. This
+  entry is left as written because it describes what 0.14.0 actually shipped.
 
 ## [0.13.1] — 2026-07-22
 
@@ -222,6 +265,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.14.2]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.0...v0.13.1

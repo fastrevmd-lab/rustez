@@ -201,16 +201,16 @@ impl<'a> ConfigManager<'a> {
     /// Commit the candidate configuration with a log comment.
     ///
     /// Sends the Junos-native `<commit-configuration><log>…</log></commit-configuration>`
-    /// RPC. The comment is XML-escaped before being embedded, so any string
-    /// (including untrusted input) is safe to pass.
+    /// RPC, attaching a comment visible in `show system commit`. Any string is
+    /// safe to pass, including untrusted input — rustnetconf XML-escapes the
+    /// comment, so callers must **not** pre-escape it.
+    ///
+    /// Like [`commit()`](Self::commit), this clears the candidate-dirty flag on
+    /// success, so a session that commits with a comment does not discard at
+    /// close.
     pub async fn commit_with_comment(&mut self, comment: &str) -> Result<(), RustEzError> {
         let timeout = self.timeout;
-        let xml = build_commit_with_comment_xml(comment);
-        // Known limitation: the raw rpc() path cannot clear the candidate-dirty
-        // flag because rustnetconf exposes no typed commit-with-comment and no
-        // public flag-clearing method. A session using this method will still
-        // send a (harmless-for-its-own-changes) <discard-changes/> at close.
-        timed(timeout, self.client.rpc(&xml)).await.map(|_| ())
+        timed(timeout, self.client.commit_configuration_with_log(comment)).await
     }
 
     /// Validate the candidate configuration without committing.
@@ -344,16 +344,6 @@ fn build_load_xml(payload: &ConfigPayload) -> String {
     }
 }
 
-/// Build the `<commit-configuration><log>…</log></commit-configuration>` XML
-/// for a Junos commit with a log comment.
-///
-/// Uses the `nc:` namespace prefix to match rustnetconf's RPC envelope.
-/// The comment is XML-escaped to prevent injection — any string is safe.
-fn build_commit_with_comment_xml(comment: &str) -> String {
-    let escaped = escape(comment);
-    format!("<{NC}commit-configuration><{NC}log>{escaped}</{NC}log></{NC}commit-configuration>")
-}
-
 /// Extract text from `<configuration-output>` tags, or return trimmed response.
 fn parse_configuration_output(xml: &str) -> String {
     if let Some(start) = xml.find("<configuration-output>") {
@@ -416,37 +406,8 @@ mod tests {
         assert!(xml.contains("&lt;evil/&gt;"));
     }
 
-    #[test]
-    fn test_build_commit_with_comment_xml_simple() {
-        let xml = build_commit_with_comment_xml("automated change");
-        assert_eq!(
-            xml,
-            "<nc:commit-configuration><nc:log>automated change</nc:log></nc:commit-configuration>"
-        );
-    }
 
-    #[test]
-    fn test_build_commit_with_comment_xml_escapes_specials() {
-        let xml = build_commit_with_comment_xml("rev </nc:log><rollback/> & more");
-        // Closing tags and ampersands inside the comment must be escaped so
-        // the resulting RPC body has exactly one balanced <nc:log>…</nc:log>.
-        assert!(!xml.contains("<rollback/>"));
-        assert!(xml.contains("&lt;/nc:log&gt;"));
-        assert!(xml.contains("&lt;rollback/&gt;"));
-        assert!(xml.contains("&amp; more"));
-        // Exactly one open and one close tag.
-        assert_eq!(xml.matches("<nc:log>").count(), 1);
-        assert_eq!(xml.matches("</nc:log>").count(), 1);
-    }
 
-    #[test]
-    fn test_build_commit_with_comment_xml_empty_comment() {
-        let xml = build_commit_with_comment_xml("");
-        assert_eq!(
-            xml,
-            "<nc:commit-configuration><nc:log></nc:log></nc:commit-configuration>"
-        );
-    }
 
     #[test]
     fn test_parse_diff_with_content() {
