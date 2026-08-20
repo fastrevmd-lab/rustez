@@ -181,6 +181,16 @@ impl PyDevice {
         Ok(guard.as_ref().is_some_and(|dev| dev.is_cluster()))
     }
 
+    /// Whether this session may have modified the shared candidate datastore.
+    ///
+    /// Returns True when the session has performed operations that mark the
+    /// candidate dirty and have not yet been followed by a successful commit
+    /// or discard. A closed device returns False.
+    fn touched_candidate(&self) -> PyResult<bool> {
+        let guard = lock_mutex(&self.device)?;
+        Ok(guard.as_ref().is_some_and(|dev| dev.touched_candidate()))
+    }
+
     /// Return facts as a Python dict.
     fn facts(&self, py: Python<'_>) -> PyResult<Vec<(String, String)>> {
         py.detach(|| {
@@ -264,6 +274,21 @@ impl PyDevice {
                 .ok_or_else(|| PyRuntimeError::new_err("not connected"))?;
             let mut rpc = dev.rpc().map_err(to_py_err)?;
             self.runtime.block_on(rpc.call_xml(&xml)).map_err(to_py_err)
+        })
+    }
+
+    /// Send raw XML RPC that modifies the candidate datastore. Returns raw XML string.
+    fn rpc_xml_candidate_change(&self, py: Python<'_>, xml: &str) -> PyResult<String> {
+        let xml = xml.to_string();
+        py.detach(|| {
+            let mut guard = lock_mutex(&self.device)?;
+            let dev = guard
+                .as_mut()
+                .ok_or_else(|| PyRuntimeError::new_err("not connected"))?;
+            let mut rpc = dev.rpc().map_err(to_py_err)?;
+            self.runtime
+                .block_on(rpc.call_xml_candidate_change(&xml))
+                .map_err(to_py_err)
         })
     }
 

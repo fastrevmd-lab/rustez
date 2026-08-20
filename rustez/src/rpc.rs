@@ -33,8 +33,30 @@ impl<'a> RpcExecutor<'a> {
     }
 
     /// Send pre-built XML directly as an RPC.
+    ///
+    /// Does NOT mark the candidate datastore dirty. For candidate-modifying RPCs
+    /// (e.g. `<load-configuration>`, `<edit-config>` targeting candidate, etc.),
+    /// use [`call_xml_candidate_change()`](Self::call_xml_candidate_change) instead
+    /// to ensure `close()` properly cleans up.
     pub async fn call_xml(&mut self, xml: &str) -> Result<String, RustEzError> {
         let result = tokio::time::timeout(self.timeout, self.client.rpc(xml)).await;
+        match result {
+            Ok(inner) => Ok(inner?),
+            Err(_) => Err(RustEzError::Timeout(format!(
+                "RPC timed out after {:?}",
+                self.timeout
+            ))),
+        }
+    }
+
+    /// Send pre-built XML for an RPC that modifies the candidate datastore.
+    ///
+    /// Marks the candidate dirty so that `close()` knows a discard may be needed.
+    /// Use this for `<load-configuration>`, `<edit-config>` on candidate, and similar
+    /// operations. For read-only RPCs or operations targeting other datastores,
+    /// use [`call_xml()`](Self::call_xml) instead.
+    pub async fn call_xml_candidate_change(&mut self, xml: &str) -> Result<String, RustEzError> {
+        let result = tokio::time::timeout(self.timeout, self.client.rpc_candidate_change(xml)).await;
         match result {
             Ok(inner) => Ok(inner?),
             Err(_) => Err(RustEzError::Timeout(format!(
@@ -60,7 +82,9 @@ impl<'a> RpcExecutor<'a> {
     /// Send pre-built XML directly as an RPC, returning any warnings.
     ///
     /// Same as [`call_xml()`](Self::call_xml) but also returns non-fatal
-    /// warnings from the device response.
+    /// warnings from the device response. Does NOT mark the candidate datastore
+    /// dirty — for candidate-modifying RPCs, use
+    /// [`call_xml_candidate_change()`](Self::call_xml_candidate_change) instead.
     pub async fn call_xml_with_warnings(
         &mut self,
         xml: &str,

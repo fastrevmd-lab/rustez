@@ -5,6 +5,84 @@ All notable changes to the `rustez` crate are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] — 2026-08-19
+
+### Fixed
+
+- **Closing a session no longer discards another operator's uncommitted work**
+  (#36). Junos exposes a **shared** candidate datastore, and `Device::close()`
+  previously caused an unconditional `<discard-changes/>`. A session that merely
+  read, or whose `<lock>` was refused with `configuration database modified`,
+  destroyed exactly the work that caused the refusal — silently, with no error
+  and no log. The upstream fix (rustnetconf #55 / 0.14.0) tracks whether *this*
+  session dirtied the candidate and discards only then, so the safety property
+  is kept without the collateral damage.
+
+- **`load_with_warnings()` now marks the candidate dirty.** It is the one
+  candidate-modifying call still on the raw `rpc_with_warnings()` escape hatch,
+  because rustnetconf has no `rpc_candidate_change_with_warnings` variant. Under
+  0.14.0's conditional discard it would otherwise have left a dirty candidate
+  behind at close, blocking the next session's lock. The mark is issued
+  **before** the send, so a timeout or partially-applied load still counts —
+  but **after** the payload is validated locally, because `rpc_with_warnings()`
+  rejects a malformed fragment without sending anything. Marking first would
+  leave a false mark on a load that never happened, and `close()` acting on it
+  would discard a third party's work — the very bug above, reintroduced.
+  `ConfigPayload::Xml` passes caller XML through unescaped, so that path was
+  reachable. Validation now runs before the configuration database is opened,
+  so an invalid payload fails with no side effects at all.
+
+- **Candidate-modifying RPCs sent through the raw escape hatch are tracked
+  again.** `RpcExecutor::call_xml()` and `call_xml_with_warnings()` do not mark
+  the candidate, and before 0.14.0 the unconditional discard covered them
+  anyway. It no longer does, which silently regressed a documented path — the
+  Python `Device.rpc.raw_xml()` docstring gave `<load-configuration
+  action="replace">` as its worked example. See *Added* for the replacement.
+
+### Added
+
+- **`RpcExecutor::call_xml_candidate_change()`**, exposed to Python as
+  **`Device.rpc.raw_xml_candidate_change()`** — the supported way to send a
+  candidate-modifying RPC over the raw path. It routes through rustnetconf's
+  `rpc_candidate_change()`, which validates, runs the send preflight, marks, and
+  only then writes, so a locally rejected fragment cannot leave a false mark.
+  `call_xml()` / `call_xml_with_warnings()` / `raw_xml()` keep their existing
+  behaviour and now say plainly in their docs that they do **not** track the
+  candidate. This is a deliberate second method rather than a flag on the
+  existing one, mirroring upstream, because a flag is too easy to forget.
+
+- **`Device::touched_candidate() -> bool`** (#36) — whether this session has a
+  candidate-modifying operation outstanding against the shared datastore. Lets a
+  connection-pooling layer decide whether a session is safe to return to the
+  pool or must be closed so the discard happens. A closed device returns
+  `false`. Exposed to Python as `Device.touched_candidate()` — on the public
+  `rustez.Device` wrapper, not only the native extension type.
+
+### Changed
+
+- Bumped `rustnetconf` to `0.14.0`, which also picks up two fixes from the
+  intervening patch releases:
+  - **0.13.2** — Junos chassis clusters return commit-check/`validate` replies
+    whose `<routing-engine>` elements are opened but never closed, which broke
+    the strict XML parser. This affected `ConfigManager::commit_check()` on
+    clusters directly.
+  - **0.13.3** — hardened RPC reply parsing for malformed and partial replies.
+- No `Cargo.lock` is committed for this library, so the SSH transport resolves
+  to the newest compatible `russh` 0.62.x at build time — which now includes
+  the `Channel::data()` backpressure fix that rustnetconf 0.13.3 called out.
+
+### Known limitations
+
+- **`commit_with_comment()` leaves a stale candidate-dirty mark.** It sends
+  `<commit-configuration><log>` through the raw `rpc()` path, and a successful
+  commit normally *clears* the flag — but rustnetconf exposes neither a typed
+  commit-with-comment nor a public flag-clearing method, so the clear cannot
+  happen. The session therefore still discards at close. This is **not a
+  regression** — 0.13.1 discarded unconditionally regardless — it is an
+  improvement this one method does not yet get. The residual risk is narrow: a
+  third party would have to dirty the shared candidate in the window between
+  our commit and our close.
+
 ## [0.13.1] — 2026-07-22
 
 ### Changed
@@ -111,6 +189,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
+[0.14.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.0...v0.12.1

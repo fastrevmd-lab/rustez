@@ -331,6 +331,23 @@ impl Device {
         self.client.as_ref().is_some_and(|c| c.has_subscription())
     }
 
+    /// Whether this session may have modified the shared candidate datastore.
+    ///
+    /// Returns `true` when this session has performed a candidate-modifying
+    /// operation — a config load or a rollback — that has not since been
+    /// followed by a successful commit or discard. A closed device returns
+    /// `false`.
+    ///
+    /// Note that raw RPCs sent through [`rpc()`](Self::rpc) do **not** set this
+    /// on their own; rustnetconf only tracks its typed operations, plus the
+    /// explicit mark `load_with_warnings()` performs.
+    ///
+    /// Useful for connection-pooling layers to decide whether a session is safe
+    /// to return to the pool or must be closed to ensure a discard happens.
+    pub fn touched_candidate(&self) -> bool {
+        self.client.as_ref().is_some_and(|c| c.candidate_dirty())
+    }
+
     /// Close the NETCONF session gracefully.
     ///
     /// Idempotent — calling close on an already-closed device is a no-op.
@@ -556,6 +573,19 @@ mod tests {
         ));
         assert!(matches!(device.rpc(), Err(RustEzError::NotConnected)));
         assert!(matches!(device.config(), Err(RustEzError::NotConnected)));
+    }
+
+    #[test]
+    fn test_touched_candidate_on_closed_device() {
+        let device = Device {
+            client: None,
+            facts_cache: None,
+            rpc_timeout: DEFAULT_RPC_TIMEOUT,
+            config_db_open: false,
+        };
+
+        // A closed device has not touched the candidate.
+        assert!(!device.touched_candidate());
     }
 
     #[test]

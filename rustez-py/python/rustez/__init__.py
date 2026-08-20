@@ -153,9 +153,12 @@ class _RpcProxy:
     def raw_xml(self, xml: str):
         """Send a raw XML RPC and return the parsed lxml response element.
 
-        Escape hatch for RPCs that aren't expressible via attribute access
-        (e.g. ``<load-configuration action="replace">``). Errors go through
-        ``classify_error`` so callers receive typed exceptions
+        Escape hatch for RPCs that aren't expressible via attribute access.
+        For RPCs that modify the candidate datastore (e.g.
+        ``<load-configuration>``, ``<edit-config>`` on candidate), use
+        ``raw_xml_candidate_change()`` instead to ensure cleanup on close.
+
+        Errors go through ``classify_error`` so callers receive typed exceptions
         (``ConnectError``, ``RpcError``, ``ConfigLoadError``, etc.) instead
         of bare ``RuntimeError``.
 
@@ -168,9 +171,43 @@ class _RpcProxy:
         Raises:
             RpcError / ConfigLoadError / ConnectError: Classified from the
                 native error string.
+
+        Example (non-candidate RPC):
+            >>> dev.rpc.raw_xml('<get-chassis-inventory/>')
         """
         try:
             xml_str = self._native.rpc_xml(xml)
+        except RuntimeError as exc:
+            raise classify_error(exc) from exc
+        return _parse_xml(xml_str)
+
+    def raw_xml_candidate_change(self, xml: str):
+        """Send a raw XML RPC that modifies the candidate datastore.
+
+        Use this for ``<load-configuration>``, ``<edit-config>`` on candidate,
+        and similar operations. This marks the candidate dirty so that
+        ``close()`` properly cleans up. For read-only RPCs, use ``raw_xml()``
+        instead.
+
+        Errors go through ``classify_error`` so callers receive typed exceptions
+        (``ConnectError``, ``RpcError``, ``ConfigLoadError``, etc.) instead
+        of bare ``RuntimeError``.
+
+        Args:
+            xml: Raw XML RPC payload (inner element — no ``<rpc>`` envelope).
+
+        Returns:
+            lxml.etree.Element parsed from the response.
+
+        Raises:
+            RpcError / ConfigLoadError / ConnectError: Classified from the
+                native error string.
+
+        Example:
+            >>> dev.rpc.raw_xml_candidate_change('<load-configuration action="replace">...</load-configuration>')
+        """
+        try:
+            xml_str = self._native.rpc_xml_candidate_change(xml)
         except RuntimeError as exc:
             raise classify_error(exc) from exc
         return _parse_xml(xml_str)
@@ -370,6 +407,21 @@ class Device:
         """Whether the device is part of a chassis cluster."""
         try:
             return self._native.is_cluster()
+        except RuntimeError:
+            return False
+
+    def touched_candidate(self) -> bool:
+        """Whether this session may have modified the shared candidate datastore.
+
+        Returns True when the session has performed operations that mark the
+        candidate dirty and have not yet been followed by a successful commit
+        or discard. Useful for deciding whether a pooled session is safe to reuse.
+
+        Returns:
+            bool: True if the candidate may be dirty, False otherwise.
+        """
+        try:
+            return self._native.touched_candidate()
         except RuntimeError:
             return False
 
