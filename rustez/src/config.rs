@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use quick_xml::escape::escape;
 use rustnetconf::rpc::RpcErrorInfo;
-use rustnetconf::{Client, Datastore, LoadAction, LoadFormat, OpenConfigurationMode};
+use rustnetconf::{Client, Datastore, LoadAction, LoadFormat, NetconfError, OpenConfigurationMode};
 
 /// XML namespace prefix used by rustnetconf for NETCONF RPCs.
 const NC: &str = "nc:";
@@ -124,13 +124,25 @@ impl<'a> ConfigManager<'a> {
     /// Warnings are non-fatal messages (severity="warning") that the device
     /// returns alongside a successful load. See [`load()`](Self::load) for
     /// the auto-open and error-cleanup behavior.
+    ///
+    /// This method marks the candidate dirty so that `close_session()` knows
+    /// a discard may be needed.
     pub async fn load_with_warnings(
         &mut self,
         payload: ConfigPayload,
     ) -> Result<(String, Vec<RpcErrorInfo>), RustEzError> {
+        // Build and validate the XML BEFORE opening or marking. rpc_with_warnings
+        // internally calls validate_xml_fragment and returns early if malformed,
+        // without sending anything. Validation must precede the mark because a
+        // false mark causes close() to discard a third party's work. This does not
+        // replicate upstream's keepalive/ensure_established preflight — only
+        // rpc_candidate_change does that, and it has no warnings variant.
+        let xml = build_load_xml(&payload);
+        rustnetconf::rpc::validate_xml_fragment(&xml).map_err(NetconfError::from)?;
+
         let opened_here = self.auto_open_if_needed().await?;
 
-        let xml = build_load_xml(&payload);
+        self.client.mark_candidate_dirty();
         let timeout = self.timeout;
         let result = timed(timeout, self.client.rpc_with_warnings(&xml)).await;
         if result.is_err() {
@@ -194,6 +206,10 @@ impl<'a> ConfigManager<'a> {
     pub async fn commit_with_comment(&mut self, comment: &str) -> Result<(), RustEzError> {
         let timeout = self.timeout;
         let xml = build_commit_with_comment_xml(comment);
+        // Known limitation: the raw rpc() path cannot clear the candidate-dirty
+        // flag because rustnetconf exposes no typed commit-with-comment and no
+        // public flag-clearing method. A session using this method will still
+        // send a (harmless-for-its-own-changes) <discard-changes/> at close.
         timed(timeout, self.client.rpc(&xml)).await.map(|_| ())
     }
 

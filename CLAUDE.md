@@ -35,10 +35,21 @@ Auth: set `RUSTEZ_VSRX_KEY` for key-based or `RUSTEZ_VSRX_PASS` for password aut
 - **quick-xml lifetime gotcha** — always bind `tag.local_name()` to a `let` before calling `.as_ref()`. The temporary must outlive the borrow.
 - **Error types** — `RustEzError` is the single error enum. Wraps `NetconfError` via `#[from]`. Use `thiserror` derive.
 - **Per-RPC timeouts** — wrap every `client.rpc()` / `client.commit()` call in `tokio::time::timeout`. Default 30s.
-- **Config loading** — uses `client.load_configuration(action, format, config)` from rustnetconf 0.6. `build_load_xml()` retained only for `rollback()` and `load_with_warnings()`.
+- **Config loading** — uses `client.load_configuration(action, format, config)` from rustnetconf 0.6. `build_load_xml()` is retained for `load_with_warnings()` only — that is the one candidate-modifying call still on the raw `rpc_with_warnings()` escape hatch, because rustnetconf has no `rpc_candidate_change_with_warnings`. `rollback()` uses the typed `client.rollback_configuration()`.
 - **ConfigPayload::Set** — maps to `LoadAction::Set, LoadFormat::Text`.
 - **Namespace prefix** — `build_load_xml()` uses `nc:` prefix on XML elements to match rustnetconf 0.7.1's `<nc:rpc>` envelope. Required for Junos 24.4 compatibility.
 - **Cluster auto-open** — `ConfigManager::load()` auto-calls `open_configuration(Private)` on clustered devices. `unlock()` auto-closes it. State tracked on `Device.config_db_open`.
+- **Candidate-dirty tracking** — rustnetconf 0.14 only sends `<discard-changes/>` on close when *this* session dirtied the shared
+  candidate. Typed ops (`load_configuration`, `rollback_configuration`, `edit_config`) mark it automatically; the raw `rpc()` /
+  `rpc_with_warnings()` path does not. **Prefer `RpcExecutor::call_xml_candidate_change()`** (Python:
+  `Device.rpc.raw_xml_candidate_change()`), which routes through `client.rpc_candidate_change()` and validates → preflights →
+  marks → sends atomically. Surfaced to callers as `Device::touched_candidate()`.
+- **A false dirty mark is worse than a missing one** — a missing mark leaves a dirty candidate that blocks the next lock; a false
+  mark makes `close()` discard *another operator's* uncommitted work, which is the bug this tracking exists to prevent. So if you
+  must hand-mark (only `load_with_warnings()` does, because there is no `rpc_candidate_change_with_warnings`), **validate the
+  fragment with `rustnetconf::rpc::validate_xml_fragment()` first, and validate before opening the config database** — the raw
+  `rpc*` calls reject a malformed fragment locally without sending, and `ConfigPayload::Xml` passes caller XML through unescaped.
+  Mark after validation but before the send, so a timeout or partial apply still counts.
 - **Warnings** — `RpcExecutor::call_with_warnings()` / `call_xml_with_warnings()` return `(String, Vec<RpcErrorInfo>)`. `ConfigManager::load_with_warnings()` does the same for config loads.
 
 ## Architecture
