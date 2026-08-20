@@ -6,6 +6,8 @@ authors = ["fastrevmd-lab"]
 description = "CLI for rustEZ — Junos device automation from the terminal"
 license = "MIT"
 repository = "https://github.com/fastrevmd-lab/rustez"
+# not published to crates.io.
+publish = false
 
 [dependencies]
 rustez = { path = "../rustez" }
