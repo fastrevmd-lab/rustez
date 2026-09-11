@@ -29,18 +29,12 @@ all-features = true
 # Permissive licenses only. rustEZ itself is MIT; everything it links must be
 # compatible with redistributing an MIT-licensed crate and a PyPI wheel.
 #
-# Deliberately ABSENT: every copyleft license (GPL/LGPL/AGPL/MPL). The only
-# copyleft crate the full graph contains is r-efi (LGPL-2.1-or-later), which
-# reaches us as a UEFI-target-only dependency of getrandom, itself a
-# build-dependency of aws-lc-sys:
-#
-#   r-efi -> getrandom -> jobserver -> cc -> cmake -> aws-lc-sys [build-deps]
-#           -> aws-lc-rs -> russh -> rustnetconf -> rustez
-#
-# It is excluded by the [graph] targets above rather than by an exception,
-# because it genuinely is not part of any artifact we build or publish. If a
-# copyleft crate ever appears in a *linked* position, this check must fail and
-# the dependency must be reconsidered -- do not silence it with an exception.
+# Deliberately ABSENT: every copyleft license (GPL/LGPL/AGPL/MPL).
+# As of rustnetconf 0.17.0 (which moved from aws-lc-rs to ring), the dependency
+# graph contains NO copyleft crates at any depth. The previous r-efi
+# (LGPL-2.1-or-later) build-dependency path through aws-lc-sys is gone.
+# If a copyleft crate ever appears in a *linked* position, this check must fail
+# and the dependency must be reconsidered -- do not silence it with an exception.
 allow = [
     "0BSD",
     "Apache-2.0",
