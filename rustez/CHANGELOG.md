@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.17.0] — 2026-09-11
+
+### Changed
+
+- **`rustnetconf` 0.16.2 → 0.17.0.** The underlying SSH transport moved from
+  aws-lc-rs to ring, making the compiled artifact roughly **23.5% smaller**.
+  No API changes in rustEZ itself — the bump is required to prevent a
+  two-version rustnetconf conflict when this crate's consumers (rustjunosmcp)
+  bump their own rustnetconf dependency. Verified: `cargo tree -i rustnetconf`
+  resolves exactly one version, and `grep -c 'name = "rustnetconf"' Cargo.lock`
+  reports `1`.
+
 
 ## [0.16.0] — 2026-08-30
 
