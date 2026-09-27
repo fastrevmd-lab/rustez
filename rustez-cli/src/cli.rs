@@ -329,4 +329,15 @@ mod tests {
             _ => panic!("expected config"),
         }
     }
+
+    /// Regression (MEC-33/MEC-59): a password must never be accepted as a CLI
+    /// argument, where `ps` and shell history expose it to the whole host.
+    #[test]
+    fn password_flag_is_rejected() {
+        for flag in ["-p", "--password"] {
+            let res =
+                Cli::try_parse_from(["rustez", "facts", "10.0.0.1", "-u", "admin", flag, "x"]);
+            assert!(res.is_err(), "{flag} must not be accepted");
+        }
+    }
 }

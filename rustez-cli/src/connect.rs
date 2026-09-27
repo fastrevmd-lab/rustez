@@ -242,7 +242,12 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn write_password_file(dir: &std::path::Path, name: &str, contents: &[u8], mode: u32) -> String {
+    fn write_password_file(
+        dir: &std::path::Path,
+        name: &str,
+        contents: &[u8],
+        mode: u32,
+    ) -> String {
         use std::os::unix::fs::PermissionsExt;
         let path = dir.join(name);
         std::fs::write(&path, contents).unwrap();
