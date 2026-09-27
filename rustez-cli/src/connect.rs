@@ -19,16 +19,22 @@ pub enum PasswordPlan {
     KeyOnly,
 }
 
-/// Decide how to obtain the password. Precedence: flag > env > key > prompt.
+/// Decide how to obtain the password. Precedence: file > env > key > prompt.
+///
+/// `file` is the password file's already-read, already-validated contents —
+/// this function makes no I/O calls, which is what keeps it plain and
+/// testable. There is deliberately no CLI-flag source: a flag value is
+/// visible to every other process on the host via `ps`, and to anyone with
+/// shell history access.
 ///
 /// Returns a `usage` error when no source is available and stdin is not a TTY.
 pub fn plan_password(
-    flag: Option<&str>,
+    file: Option<&str>,
     env: Option<&str>,
     has_key: bool,
     is_tty: bool,
 ) -> Result<PasswordPlan, CliError> {
-    if let Some(p) = flag {
+    if let Some(p) = file {
         return Ok(PasswordPlan::Use(p.to_string()));
     }
     if let Some(e) = env {
@@ -42,8 +48,63 @@ pub fn plan_password(
     }
     Err(CliError::new(
         ErrorKind::Usage,
-        "no password provided and stdin is not a TTY; set $RUSTEZ_PASSWORD or use --key-file",
+        "no password provided and stdin is not a TTY; set $RUSTEZ_PASSWORD, \
+         --password-file <PATH>, or use --key-file",
     ))
+}
+
+/// Read and validate a password file: a regular, non-symlink file at exactly
+/// mode 0600, holding valid UTF-8 with at most one trailing line ending
+/// stripped.
+///
+/// The permission and symlink checks match the credential-file convention
+/// used elsewhere at Mechub (e.g. rustmistmcp's `validate_credential_file`):
+/// a password file left group- or world-readable, or reached through a
+/// symlink an attacker can redirect, defeats the point of moving the secret
+/// out of the CLI argument in the first place.
+fn read_password_file(path: &str) -> Result<String, CliError> {
+    let usage = |message: String| CliError::new(ErrorKind::Usage, message);
+
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|e| usage(format!("--password-file {path}: {e}")))?;
+    if metadata.file_type().is_symlink() {
+        return Err(usage(format!(
+            "--password-file {path} must not be a symlink"
+        )));
+    }
+    if !metadata.file_type().is_file() {
+        return Err(usage(format!(
+            "--password-file {path} must be a regular file"
+        )));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = metadata.permissions().mode() & 0o777;
+        if mode != 0o600 {
+            return Err(usage(format!(
+                "--password-file {path} must be mode 0600, found {mode:o}"
+            )));
+        }
+    }
+
+    let raw = std::fs::read(path).map_err(|e| usage(format!("--password-file {path}: {e}")))?;
+    let mut text = String::from_utf8(raw)
+        .map_err(|_| usage(format!("--password-file {path} is not valid UTF-8")))?;
+    // Strip at most one trailing line ending: a password file written with an
+    // editor ordinarily ends in one, and a password legitimately ending in a
+    // real newline or other whitespace byte is indistinguishable from that at
+    // this layer, so trimming more would silently change the credential.
+    if text.ends_with('\n') {
+        text.pop();
+        if text.ends_with('\r') {
+            text.pop();
+        }
+    }
+    if text.is_empty() {
+        return Err(usage(format!("--password-file {path} is empty")));
+    }
+    Ok(text)
 }
 
 /// Map host-key CLI flags to a verification policy. `None` => library default (RejectAll).
@@ -65,16 +126,15 @@ pub fn host_key_policy(conn: &ConnOpts) -> Option<HostKeyVerification> {
 /// `gather_facts` controls whether facts are auto-gathered on open (true for
 /// the `facts` command, false for `rpc`/`config` to save three RPCs).
 pub async fn build_device(conn: &ConnOpts, gather_facts: bool) -> Result<Device, CliError> {
-    if conn.password.is_some() {
-        eprintln!(
-            "warning: --password is visible in the process list; prefer $RUSTEZ_PASSWORD or --key-file"
-        );
-    }
-
+    let file_pw = conn
+        .password_file
+        .as_deref()
+        .map(read_password_file)
+        .transpose()?;
     let env_pw = std::env::var("RUSTEZ_PASSWORD").ok();
     let has_key = conn.key_file.is_some();
     let is_tty = std::io::stdin().is_terminal();
-    let plan = plan_password(conn.password.as_deref(), env_pw.as_deref(), has_key, is_tty)?;
+    let plan = plan_password(file_pw.as_deref(), env_pw.as_deref(), has_key, is_tty)?;
 
     let password = match plan {
         PasswordPlan::Use(p) => Some(p),
@@ -119,13 +179,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn flag_password_takes_precedence() {
-        let plan = plan_password(Some("flagpw"), Some("envpw"), false, false).unwrap();
-        assert_eq!(plan, PasswordPlan::Use("flagpw".into()));
+    fn file_password_takes_precedence() {
+        let plan = plan_password(Some("filepw"), Some("envpw"), false, false).unwrap();
+        assert_eq!(plan, PasswordPlan::Use("filepw".into()));
     }
 
     #[test]
-    fn env_password_used_when_no_flag() {
+    fn env_password_used_when_no_file() {
         let plan = plan_password(None, Some("envpw"), false, false).unwrap();
         assert_eq!(plan, PasswordPlan::Use("envpw".into()));
     }
@@ -168,7 +228,7 @@ mod tests {
         let mut conn = ConnOpts {
             host: "h".into(),
             user: "u".into(),
-            password: None,
+            password_file: None,
             port: None,
             key_file: None,
             host_key_fingerprint: None,
@@ -179,5 +239,68 @@ mod tests {
         };
         tweak(&mut conn);
         conn
+    }
+
+    #[cfg(unix)]
+    fn write_password_file(dir: &std::path::Path, name: &str, contents: &[u8], mode: u32) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join(name);
+        std::fs::write(&path, contents).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+        path.to_str().unwrap().to_owned()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn password_file_strips_one_trailing_newline() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_password_file(dir.path(), "pw", b"hunter2\n", 0o600);
+        assert_eq!(read_password_file(&path).unwrap(), "hunter2");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn password_file_keeps_internal_and_non_newline_whitespace() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_password_file(dir.path(), "pw", b"trailing space \n", 0o600);
+        assert_eq!(read_password_file(&path).unwrap(), "trailing space ");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn password_file_at_0644_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_password_file(dir.path(), "pw", b"hunter2\n", 0o644);
+        let err = read_password_file(&path).unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Usage);
+        assert!(err.message.contains("0600"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn empty_password_file_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_password_file(dir.path(), "pw", b"", 0o600);
+        let err = read_password_file(&path).unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Usage);
+        assert!(err.message.contains("empty"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_password_file_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = write_password_file(dir.path(), "real-pw", b"hunter2\n", 0o600);
+        let link = dir.path().join("linked-pw");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let err = read_password_file(link.to_str().unwrap()).unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Usage);
+        assert!(err.message.contains("symlink"));
+    }
+
+    #[test]
+    fn missing_password_file_is_a_usage_error() {
+        let err = read_password_file("/nonexistent/rustez-password-file").unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Usage);
     }
 }

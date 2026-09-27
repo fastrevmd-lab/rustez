@@ -97,7 +97,7 @@ automatically.
 
 ```bash
 # Gather device facts
-rustez facts 10.0.0.1 -u admin -p secret
+rustez facts 10.0.0.1 -u admin --password-file /path/to/password-0600
 
 # Run a show command
 rustez rpc 10.0.0.1 "show interfaces terse" -u admin
@@ -131,10 +131,11 @@ Each error `kind` maps to a distinct exit code: `usage`=1, `connect`=2, `auth`=3
 
 ### Credentials
 
-Password resolution precedence: `-p/--password` (warns — visible in the process
-list) → `$RUSTEZ_PASSWORD` → `--key-file <PATH>` (key-based auth) → interactive
-no-echo prompt (when stdin is a TTY). Prefer `$RUSTEZ_PASSWORD` or `--key-file`
-over `-p`.
+Password resolution precedence: `--password-file <PATH>` (must be a regular,
+non-symlink file at mode 0600) → `$RUSTEZ_PASSWORD` → `--key-file <PATH>`
+(key-based auth) → interactive no-echo prompt (when stdin is a TTY). There is
+no `--password` flag: a password given as a CLI argument is visible to every
+other process on the host via `ps`, and to anyone with shell-history access.
 
 ### Host-key verification
 

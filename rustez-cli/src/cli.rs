@@ -26,6 +26,13 @@ pub enum Command {
 }
 
 /// Connection options shared by every command.
+///
+/// No field here may hold a resolved password: the value itself lives only in
+/// `$RUSTEZ_PASSWORD`, in the file named by `password_file`, or in what an
+/// interactive prompt reads — never in a CLI argument, which `ps` and shell
+/// history both make visible to anyone on the same host. That is also why
+/// `derive(Debug)` is safe to keep here: `password_file` is a path, not a
+/// secret, and there is nothing else on this struct that is.
 #[derive(Args, Debug)]
 pub struct ConnOpts {
     /// Device hostname or IP.
@@ -33,9 +40,10 @@ pub struct ConnOpts {
     /// Login username.
     #[arg(short, long)]
     pub user: String,
-    /// Login password (insecure: visible in process list — prefer $RUSTEZ_PASSWORD).
-    #[arg(short, long)]
-    pub password: Option<String>,
+    /// Path to a file holding the login password. Must be a regular,
+    /// non-symlink file at mode 0600.
+    #[arg(long)]
+    pub password_file: Option<String>,
     /// NETCONF port (library default if unset).
     #[arg(long)]
     pub port: Option<u16>,
