@@ -48,7 +48,10 @@ pub struct Facts {
 /// Sends three RPCs sequentially, each wrapped in a per-RPC timeout:
 /// 1. `<get-software-information/>` — hostname, model, version
 /// 2. `<get-chassis-inventory/>` — serial number
-/// 3. `<get-route-engine-information/>` — RE status
+/// 3. `<get-route-engine-information/>` — RE status. Platforms without a
+///    routing engine (cSRX) reject this RPC as a syntax error; that is
+///    treated as "no route-engine info" rather than failing the connection
+///    (rustEZ#54). Any other error is still fatal.
 pub(crate) async fn gather_facts(
     client: &mut Client,
     timeout: Duration,
@@ -88,8 +91,19 @@ pub(crate) async fn gather_facts(
     .unwrap_or_else(|| "unknown".to_string());
 
     // 3. Route engine information
-    let re_xml = rpc_with_timeout(client, "<get-route-engine-information/>", timeout).await?;
-    let re_items = unwrap_multi_re(&re_xml);
+    let re_items = match rpc_with_timeout(client, "<get-route-engine-information/>", timeout).await
+    {
+        Ok(re_xml) => unwrap_multi_re(&re_xml),
+        Err(e) if is_unsupported_rpc(&e, "get-route-engine-information") => {
+            tracing::debug!(
+                model = %model,
+                "get-route-engine-information not supported on this platform; \
+                 continuing without route-engine facts"
+            );
+            Vec::new()
+        }
+        Err(e) => return Err(e),
+    };
 
     let mut route_engines = Vec::new();
     for (_re_name, re_content) in &re_items {
@@ -112,6 +126,28 @@ pub(crate) async fn gather_facts(
         fqdn,
         is_cluster,
     })
+}
+
+/// True when `err` is the device rejecting `rpc_name` itself as unknown —
+/// a `syntax error` `<rpc-error>` whose `bad-element` (when present) is that
+/// RPC. Timeouts, transport failures and any other server error are not
+/// "unsupported" and stay fatal.
+fn is_unsupported_rpc(err: &RustEzError, rpc_name: &str) -> bool {
+    use rustnetconf::error::RpcError;
+    use rustnetconf::NetconfError;
+
+    let RustEzError::Netconf(NetconfError::Rpc(RpcError::ServerError(server))) = err else {
+        return false;
+    };
+    if !server.message.to_ascii_lowercase().contains("syntax error") {
+        return false;
+    }
+    match &server.info {
+        // `<bad-element>` may carry a namespace prefix (`nc:bad-element`),
+        // so match on the element's text content.
+        Some(info) if info.contains("bad-element") => info.contains(&format!(">{rpc_name}<")),
+        _ => true,
+    }
 }
 
 /// Send an RPC with a per-RPC timeout.
@@ -270,6 +306,60 @@ pub fn unwrap_multi_re(xml: &str) -> Vec<(Option<String>, String)> {
 
 #[cfg(test)]
 mod tests {
+
+    // --- rustEZ#54: cSRX rejects get-route-engine-information ---
+
+    fn server_error(message: &str, info: Option<&str>) -> RustEzError {
+        use rustnetconf::error::RpcError;
+        use rustnetconf::types::{ErrorSeverity, ErrorTag, RpcErrorType};
+        RustEzError::Netconf(rustnetconf::NetconfError::Rpc(RpcError::ServerError(
+            Box::new(rustnetconf::RpcServerError {
+                error_type: Some(RpcErrorType::Protocol),
+                tag: ErrorTag::OperationFailed,
+                severity: Some(ErrorSeverity::Error),
+                app_tag: None,
+                path: None,
+                message: message.to_string(),
+                info: info.map(str::to_string),
+            }),
+        )))
+    }
+
+    #[test]
+    fn csrx_syntax_error_on_route_engine_rpc_is_unsupported() {
+        // Exact reply from cSRX 26.2R1.7 in the issue.
+        let err = server_error(
+            "syntax error",
+            Some("<nc:bad-element>get-route-engine-information</nc:bad-element>"),
+        );
+        assert!(is_unsupported_rpc(&err, "get-route-engine-information"));
+    }
+
+    #[test]
+    fn syntax_error_without_bad_element_is_unsupported() {
+        let err = server_error("syntax error", None);
+        assert!(is_unsupported_rpc(&err, "get-route-engine-information"));
+    }
+
+    #[test]
+    fn syntax_error_naming_a_different_element_stays_fatal() {
+        let err = server_error(
+            "syntax error",
+            Some("<bad-element>something-else</bad-element>"),
+        );
+        assert!(!is_unsupported_rpc(&err, "get-route-engine-information"));
+    }
+
+    #[test]
+    fn other_errors_stay_fatal() {
+        let denied = server_error("permission denied", None);
+        assert!(!is_unsupported_rpc(&denied, "get-route-engine-information"));
+        let timeout = RustEzError::Timeout("facts RPC timed out".into());
+        assert!(!is_unsupported_rpc(
+            &timeout,
+            "get-route-engine-information"
+        ));
+    }
     use super::*;
 
     #[test]

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed
+
+- **Facts on cSRX (#54).** `gather_facts` no longer fails the whole
+  connection when the device rejects `<get-route-engine-information/>` as a
+  syntax error (cSRX has no routing engine). Facts are returned with
+  `route_engines: []` and `master_re: None`; timeouts, transport failures and
+  any other RPC error are still fatal.
+
+### Added
+
+- **`Personality::Csrx`** for model `csrx`, so callers can gate RE-/routing-
+  specific workflows. `Personality` is not `#[non_exhaustive]`, so exhaustive
+  `match`es downstream need a new arm — release as a minor bump.
+
 ## [0.17.0] — 2026-09-11
 
 ### Changed

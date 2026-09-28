@@ -15,6 +15,10 @@ pub enum Personality {
     Vmx,
     Srx,
     Vsrx,
+    /// Containerized SRX. Has no routing engine (`get-route-engine-information`
+    /// is a syntax error) and no `rpd`, so RE-/routing-specific workflows
+    /// should be gated on this.
+    Csrx,
     Ex,
     Qfx,
     Ptx,
@@ -49,6 +53,9 @@ pub fn detect_personality(model: &str) -> Personality {
     }
     if lower.starts_with("mx") {
         return Personality::Mx;
+    }
+    if lower.contains("csrx") {
+        return Personality::Csrx;
     }
     if lower.contains("vsrx") || lower.contains("firefly") {
         return Personality::Vsrx;
@@ -108,6 +115,8 @@ mod tests {
         assert_eq!(detect_personality("Firefly-Perimeter"), Personality::Vsrx);
         assert_eq!(detect_personality("M320"), Personality::M);
         assert_eq!(detect_personality("T640"), Personality::T);
+        assert_eq!(detect_personality("csrx"), Personality::Csrx);
+        assert_eq!(detect_personality("cSRX"), Personality::Csrx);
     }
 
     #[test]
