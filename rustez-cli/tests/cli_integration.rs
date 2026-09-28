@@ -23,11 +23,10 @@ fn facts_json_against_vsrx() {
             &host,
             "-u",
             &user,
-            "-p",
-            &pass,
             "--accept-any-host-key",
             "--json",
         ])
+        .env("RUSTEZ_PASSWORD", &pass)
         .output()
         .expect("failed to run rustez-cli");
 
