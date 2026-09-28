@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-09-28
+
 ### Fixed
 
 - **Facts on cSRX (#54).** `gather_facts` no longer fails the whole
@@ -19,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`Personality::Csrx`** for model `csrx`, so callers can gate RE-/routing-
   specific workflows. `Personality` is not `#[non_exhaustive]`, so exhaustive
-  `match`es downstream need a new arm — release as a minor bump.
+  `match`es downstream need a new arm (hence the minor bump).
 
 ## [0.17.0] — 2026-09-11
 
