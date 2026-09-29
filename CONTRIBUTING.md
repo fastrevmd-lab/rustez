@@ -1,6 +1,6 @@
 # Contributing to rustEZ
 
-Thanks for considering a contribution. rustEZ is an async-first Rust replacement for Juniper PyEZ, built on [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf) — part of the [mechub](https://github.com/fastrevmd-lab) family of open-source, self-hosted network automation tooling. See [README.md](README.md) for what it does.
+Thanks for considering a contribution. rustEZ is an async-first Rust replacement for Juniper PyEZ, built on [rustnetconf](https://github.com/mechubsec/rustnetconf) — part of the [mechub](https://github.com/fastrevmd-lab) family of open-source, self-hosted network automation tooling. See [README.md](README.md) for what it does.
 
 ## Before you start
 

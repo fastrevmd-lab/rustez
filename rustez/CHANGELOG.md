@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING: `rustnetconf` raised to `0.15`, which reshapes one error variant.**
   `RpcError::ServerError` became a tuple variant carrying a boxed struct
-  ([rustnetconf#66](https://github.com/fastrevmd-lab/rustnetconf/issues/66)). Its
+  ([rustnetconf#66](https://github.com/mechubsec/rustnetconf/issues/66)). Its
   seven RFC 6241 §4.3 fields moved into a new public `RpcServerError`; the fields
   themselves are unchanged, still public, and still all present.
 
@@ -147,7 +147,7 @@ Two device-facing bugs, both fixed upstream and reaching rustEZ only now because
 the floor was still `0.14.3`:
 
 - **A benign Junos warning no longer sinks an entire config load**
-  ([rustnetconf#67](https://github.com/fastrevmd-lab/rustnetconf/issues/67), 0.14.5).
+  ([rustnetconf#67](https://github.com/mechubsec/rustnetconf/issues/67), 0.14.5).
   Deleting a statement that is not present returns an `<rpc-error>` carrying only
   severity and message; RFC 6241 makes `error-type` and `error-tag` mandatory and
   Junos omits both, so the reply was rejected outright and the load failed.
@@ -155,7 +155,7 @@ the floor was still `0.14.3`:
   unusually exposed — it exists to surface warnings, and a warning was fatal.
 
 - **A standalone SRX's commit-check verdict is no longer discarded**
-  ([rustnetconf#65](https://github.com/fastrevmd-lab/rustnetconf/issues/65), 0.14.4).
+  ([rustnetconf#65](https://github.com/mechubsec/rustnetconf/issues/65), 0.14.4).
   A single-RE SRX345 answers a commit-check with a closed `<commit-results>`
   followed by a sibling `<ok/>`; the reply failed to parse and a passing check
   was thrown away. The chassis-cluster form already worked, so a device that
@@ -179,7 +179,7 @@ the floor was still `0.14.3`:
   this release exists only to stop a fresh resolve from picking a version with
   a bug rustEZ is unusually exposed to.
 
-  rustnetconf 0.14.3 fixes [#61](https://github.com/fastrevmd-lab/rustnetconf/issues/61):
+  rustnetconf 0.14.3 fixes [#61](https://github.com/mechubsec/rustnetconf/issues/61):
   it tracked "a commit is in flight" in a session field, set before the send and
   cleared after it, so a commit future dropped at its `.await` left the flag set
   for the life of the session. The next *unrelated* transport EOF was then
@@ -455,16 +455,16 @@ the floor was still `0.14.3`:
   was `AcceptAll`. Since `rustnetconf 0.11` the default has been `RejectAll`
   (fail-closed); the docs now reflect this.
 
-[0.16.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.15.0...v0.16.0
-[0.15.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.3...v0.15.0
-[0.14.3]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.2...v0.14.3
-[0.14.2]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.1...v0.14.2
-[0.14.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.14.0...v0.14.1
-[0.14.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.1...v0.14.0
-[0.13.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.13.0...v0.13.1
-[0.13.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.1...v0.13.0
-[0.12.1]: https://github.com/fastrevmd-lab/rustez/compare/v0.12.0...v0.12.1
-[0.12.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.11.0...v0.12.0
+[0.16.0]: https://github.com/mechubsec/rustez/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/mechubsec/rustez/compare/v0.14.3...v0.15.0
+[0.14.3]: https://github.com/mechubsec/rustez/compare/v0.14.2...v0.14.3
+[0.14.2]: https://github.com/mechubsec/rustez/compare/v0.14.1...v0.14.2
+[0.14.1]: https://github.com/mechubsec/rustez/compare/v0.14.0...v0.14.1
+[0.14.0]: https://github.com/mechubsec/rustez/compare/v0.13.1...v0.14.0
+[0.13.1]: https://github.com/mechubsec/rustez/compare/v0.13.0...v0.13.1
+[0.13.0]: https://github.com/mechubsec/rustez/compare/v0.12.1...v0.13.0
+[0.12.1]: https://github.com/mechubsec/rustez/compare/v0.12.0...v0.12.1
+[0.12.0]: https://github.com/mechubsec/rustez/compare/v0.11.0...v0.12.0
 
 ## [0.11.0] — 2026-05-18
 
@@ -475,7 +475,7 @@ the floor was still `0.14.3`:
   - **Python:** Pass `host_key_fingerprint="..."` to `Device(...)` to pin, or use `HostKeyVerification` directly via the native bindings.
 - Integration test harness (`vsrx_builder` in `tests/integration_vsrx.rs`) updated to explicitly request `HostKeyVerification::AcceptAll` since the lab vSRX devices are known-good.
 
-[0.11.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.10.0...v0.11.0
+[0.11.0]: https://github.com/mechubsec/rustez/compare/v0.10.0...v0.11.0
 
 ## [0.10.0] — 2026-05-06
 
@@ -502,7 +502,7 @@ the floor was still `0.14.3`:
 - Synced `rustez-py` version to match core crate.
 - Removed unused `to_netconf_err` function from Python bindings.
 
-[0.10.0]: https://github.com/fastrevmd-lab/rustez/compare/v0.8.4...v0.10.0
+[0.10.0]: https://github.com/mechubsec/rustez/compare/v0.8.4...v0.10.0
 
 ## 0.9.0 — 2026-05-04
 

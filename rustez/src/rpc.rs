@@ -232,7 +232,7 @@ mod tests {
 
     /// Empty rpc-reply from silent commands (e.g. `request security ...`)
     /// returns an empty string after rustnetconf 0.8.1 fix.
-    /// See: https://github.com/fastrevmd-lab/rustEZ/issues/8
+    /// See: https://github.com/mechubsec/rustez/issues/8
     #[test]
     fn test_parse_cli_output_empty_reply() {
         let result = parse_cli_output("");

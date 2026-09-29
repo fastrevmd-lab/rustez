@@ -1,6 +1,6 @@
 # rustEZ
 
-Rust replacement for Juniper PyEZ. Async-first Junos device automation built on [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf).
+Rust replacement for Juniper PyEZ. Async-first Junos device automation built on [rustnetconf](https://github.com/mechubsec/rustnetconf).
 
 Workspace crates: `rustez` (core library), `rustez-cli`, `rustez-py`.
 
