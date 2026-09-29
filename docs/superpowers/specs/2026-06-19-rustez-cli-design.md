@@ -1,6 +1,6 @@
 # rustez-cli Implementation Design
 
-**Issue:** fastrevmd-lab/rustEZ#20 — Implement rustez-cli beyond placeholder binary
+**Issue:** mechubsec/rustez#20 — Implement rustez-cli beyond placeholder binary
 **Date:** 2026-06-19
 **Status:** Approved (brainstorming)
 

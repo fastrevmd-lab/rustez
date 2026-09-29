@@ -1,7 +1,7 @@
 //! # rustEZ
 //!
 //! A Rust replacement for Juniper PyEZ — async-first Junos device automation
-//! built on [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf).
+//! built on [rustnetconf](https://github.com/mechubsec/rustnetconf).
 //!
 //! ## Quick Start
 //!

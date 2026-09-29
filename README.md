@@ -12,7 +12,7 @@
 
 > **Unofficial / community project.** This repository is an independent, community-driven project. It is not affiliated with, endorsed by, sponsored by, or supported by Hewlett Packard Enterprise or Juniper Networks. "HPE", "Juniper", "SRX", "JUNOS", "Security Director" and "Juniper Mist" are trademarks of their respective owners and are used here only to describe what this software interoperates with. Please direct support and licensing questions about those products to the respective vendors.
 
-Async-first Junos device automation, replacing [Juniper PyEZ](https://github.com/Juniper/py-junos-eznc) — built on [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf).
+Async-first Junos device automation, replacing [Juniper PyEZ](https://github.com/Juniper/py-junos-eznc) — built on [rustnetconf](https://github.com/mechubsec/rustnetconf).
 
 ## Why rustEZ?
 
@@ -36,7 +36,7 @@ rustez-cli/       CLI binary — Junos automation from the terminal
 rustez-py/        Python bindings via PyO3 — pip install rustez
 ```
 
-Built on [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf) for NETCONF transport, SSH (via russh), connection pooling, vendor profiles, and event notifications (RFC 5277).
+Built on [rustnetconf](https://github.com/mechubsec/rustnetconf) for NETCONF transport, SSH (via russh), connection pooling, vendor profiles, and event notifications (RFC 5277).
 
 ## Quick Start (Library)
 
@@ -175,7 +175,7 @@ For unsupported platforms, build from source with [maturin](https://github.com/P
 
 ```bash
 pip install maturin
-git clone https://github.com/fastrevmd-lab/rustez.git
+git clone https://github.com/mechubsec/rustez.git
 cd rustEZ && maturin build --release -m rustez-py/Cargo.toml
 pip install target/wheels/*.whl
 ```
@@ -217,7 +217,7 @@ Verified on a real device with all integration tests passing:
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| [rustnetconf](https://github.com/fastrevmd-lab/rustnetconf) | 0.15 | NETCONF client (SSH transport, RFC 6241/5277) |
+| [rustnetconf](https://github.com/mechubsec/rustnetconf) | 0.15 | NETCONF client (SSH transport, RFC 6241/5277) |
 | [tokio](https://crates.io/crates/tokio) | 1 | Async runtime |
 | [quick-xml](https://crates.io/crates/quick-xml) | 0.41 | XML parsing |
 | [thiserror](https://crates.io/crates/thiserror) | 2 | Error derive macros |
@@ -254,7 +254,7 @@ handling through `ssh-key`, which is still on a release-candidate line
 (`0.7.0-rc.11`), pulling prerelease `argon2` and `blake2` with it. Nothing is
 known to be wrong with those versions, and the fix is upstream — this closes
 when `ssh-key` 0.7.0 goes stable, not when `russh` releases. Tracked at
-[rustnetconf#64](https://github.com/fastrevmd-lab/rustnetconf/issues/64).
+[rustnetconf#64](https://github.com/mechubsec/rustnetconf/issues/64).
 
 Run `cargo audit` to check for the latest advisories.
 
