@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-09-30
+
+### Changed
+
+- **`rustnetconf` 0.17 → 0.18.** Re-exported `HostKeyVerification` gains the
+  new `AcceptNew` TOFU variant from rustnetconf 0.18.0, so it now flows
+  through to rustEZ callers. `HostKeyVerification` is not `#[non_exhaustive]`,
+  so exhaustive `match`es downstream need a new arm (hence the minor bump).
+  No other API changes in rustEZ itself.
+
 ## [0.18.0] — 2026-09-28
 
 ### Fixed
